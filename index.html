@@ -118,7 +118,6 @@
       
       const viewBox = { width: 1920, height: 1080 };
 
-      // Statische Geometrie der Buchstaben und des gesamten Blocks berechnen
       const layerBox = layer.getBBox();
       const wordCenter = {
         x: layerBox.x + layerBox.width / 2,
@@ -127,8 +126,6 @@
 
       letterGroups.forEach(group => {
         const groupBox = group.getBBox();
-        group.originalX = groupBox.x;
-        group.originalY = groupBox.y;
         group.originalWidth = groupBox.width;
         group.originalHeight = groupBox.height;
         group.centerX = groupBox.x + groupBox.width / 2;
@@ -136,53 +133,40 @@
         group.visualShape = group.querySelector('.visual-shape');
       });
 
-      // Hilfsfunktion zum Umrechnen von Wertebereichen
       const mapRange = (value, in_min, in_max, out_min, out_max) => {
         return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
       }
       
-      // Hauptfunktion, die die Animation steuert
       function handleOrientation(event) {
-        // Gyroskop-Werte (links/rechts und vorne/hinten)
-        const gamma = event.gamma || 0; // -90 bis 90
-        const beta = event.beta || 0;   // -180 bis 180
+        const gamma = event.gamma || 0;
+        const beta = event.beta || 0;
 
-        // Wir definieren einen maximalen Neigungswinkel, um die Reaktion zu steuern
         const maxTilt = 40.0;
-
-        // Normalisiere die Neigungswerte auf einen Bereich von -1 bis 1
         const tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
-        const tiltY = gsap.utils.clamp(-1, 1, (beta - 45) / maxTilt); // -45 als Kalibrierung für eine angenehme Haltung
+        const tiltY = gsap.utils.clamp(-1, 1, (beta - 45) / maxTilt);
 
-        // Parameter für die Animation
-        const maxSlide = 150; // Maximale Verschiebung des ganzen Blocks
-        const maxStretch = 300; // Maximale Dehnung der äußeren Buchstaben
-        const maxScale = 0.5; // Maximale Skalierungsänderung (z.B. 1.0 -> 1.5)
+        const maxSlide = 150;
+        const maxStretch = 300;
+        const maxScale = 0.5;
 
         let futureLeft = Infinity, futureRight = -Infinity, futureTop = Infinity, futureBottom = -Infinity;
 
-        // Berechne die zukünftige Position und Größe für jeden Buchstaben
         letterGroups.forEach(group => {
-            // Normalisierte Position des Buchstabens innerhalb des Wortes (-1 bis +1)
             const normalizedPosX = (group.centerX - wordCenter.x) / (layerBox.width / 2);
             const normalizedPosY = (group.centerY - wordCenter.y) / (layerBox.height / 2);
 
-            // 1. Verschiebung des gesamten Blocks (Sliding)
             const slideX = tiltX * maxSlide;
             const slideY = tiltY * maxSlide;
 
-            // 2. Individuelle Verschiebung durch Dehnung (Stretching)
             const stretchX = tiltX * normalizedPosX * maxStretch;
             const stretchY = tiltY * normalizedPosY * maxStretch;
             
             group.targetX = slideX + stretchX;
             group.targetY = slideY + stretchY;
             
-            // 3. Skalierung basierend auf Position und Neigung
             group.targetScaleX = 1 + (tiltX * normalizedPosX * maxScale);
             group.targetScaleY = 1 + (tiltY * normalizedPosY * maxScale);
 
-            // Berechne die Kanten der zukünftigen Bounding Box
             const futureCenterX = group.centerX + group.targetX;
             const futureCenterY = group.centerY + group.targetY;
             const futureWidth = group.originalWidth * group.targetScaleX;
@@ -194,7 +178,6 @@
             futureBottom = Math.max(futureBottom, futureCenterY + futureHeight / 2);
         });
         
-        // Berechne die Korrektur, falls der Block über den Rand ragt
         let correctionX = 0;
         if (futureLeft < 0) correctionX = -futureLeft;
         if (futureRight > viewBox.width) correctionX = viewBox.width - futureRight;
@@ -203,7 +186,33 @@
         if (futureTop < 0) correctionY = -futureTop;
         if (futureBottom > viewBox.height) correctionY = viewBox.height - futureBottom;
 
-        // Animiere jeden Buchstaben zu seiner finalen, korrigierten Position
+        // =================================================================
+        // NEUE LOGIK für Stauchen (Squash) und Dehnen (Stretch)
+        // =================================================================
+        let squashRatioX = 1.0;
+        let finalTOriginX = "center";
+        let finalTOriginY = "center";
+        
+        const maxOverflowForSquash = 250; // Grenzwert für maximales Stauchen
+
+        // Horizontale Logik: Stauchen und Ankerpunkt setzen
+        if (correctionX > 0) { // An den linken Rand gestoßen
+            squashRatioX = mapRange(correctionX, 0, maxOverflowForSquash, 1, 0.4); // Staucht bis auf 40%
+            finalTOriginX = "right"; // Stauchen von rechts nach links
+        } else if (correctionX < 0) { // An den rechten Rand gestoßen
+            squashRatioX = mapRange(Math.abs(correctionX), 0, maxOverflowForSquash, 1, 0.4);
+            finalTOriginX = "left"; // Stauchen von links nach rechts
+        }
+
+        // Vertikale Logik: Ankerpunkt für Dehnen setzen
+        const tiltDeadzone = 2; // Kleine neutrale Zone
+        if (tiltY > tiltDeadzone) { // Nach vorne kippen
+            finalTOriginY = "bottom"; // Dehnen von der Unterkante nach oben
+        } else if (tiltY < -tiltDeadzone) { // Nach hinten kippen
+            finalTOriginY = "top"; // Dehnen von der Oberkante nach unten
+        }
+
+        // Animation für jeden Buchstaben ausführen
         letterGroups.forEach(group => {
             gsap.to(group, {
                 x: group.targetX + correctionX,
@@ -214,9 +223,9 @@
             });
 
             gsap.to(group.visualShape, {
-                scaleX: group.targetScaleX,
+                scaleX: group.targetScaleX * squashRatioX, // Stauchung anwenden
                 scaleY: group.targetScaleY,
-                transformOrigin: "center center",
+                transformOrigin: `${finalTOriginX} ${finalTOriginY}`, // Dynamischen Ankerpunkt setzen
                 duration: 0.8,
                 ease: "power3.out",
                 overwrite: 'auto'
@@ -224,9 +233,7 @@
         });
       }
       
-      // Startet den Prozess nach Klick auf den Button
       function startAnimation() {
-        // Prüfen, ob die DeviceOrientationEvent API und die requestPermission Methode existieren (für iOS 13+)
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(permissionState => {
@@ -239,7 +246,6 @@
                 })
                 .catch(console.error);
         } else {
-            // Für Android und ältere iOS-Versionen, wo keine Erlaubnis nötig ist
             window.addEventListener('deviceorientation', handleOrientation);
             permissionOverlay.style.display = 'none';
         }
@@ -250,3 +256,5 @@
   </script>
 </body>
 </html>
+
+
