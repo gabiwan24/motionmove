@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>MOTION SVG mit Gyroskop</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden; /* Verhindert Scrollen auf Mobilgeräten */
+    }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: #111;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    svg {
+      width: min(95vw, calc(95vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      display: block;
+      overflow: visible; 
+    }
+
+    /* Styling für den Erlaubnis-Button und Statusmeldungen */
+    #permission-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      text-align: center;
+      color: white;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    #permission-button {
+      font-size: 1.2rem;
+      padding: 15px 30px;
+      margin-top: 20px;
+      border-radius: 12px;
+      border: 1px solid #fff;
+      background-color: #333;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+    #permission-button:hover {
+        background-color: #555;
+    }
+     #permission-button:active {
+        transform: scale(0.95);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="permission-overlay">
+    <h1>Interaktive Typografie</h1>
+    <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben und die Animation zu starten.</p>
+    <button id="permission-button">Starten</button>
+  </div>
+
+  <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
+    <g id="Layer_1">
+      <!-- SVG-Buchstabengruppen bleiben unverändert -->
+      <g class="letter-group">
+        <rect x="17.31" y="269.69" width="340" height="510" fill="transparent" />
+        <polygon class="visual-shape" points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
+      </g>
+      <g class="letter-group">
+        <rect x="373.25" y="269.69" width="340.9" height="510" fill="transparent" />
+        <polygon class="visual-shape" points="600.18 269.69 600.18 269.69 487.23 269.69 486.2 269.69 373.25 269.69 373.25 779.69 486.2 779.69 487.23 779.69 600.18 779.69 600.18 779.69 714.15 779.69 714.15 269.69 600.18 269.69"/>
+      </g>
+      <g class="letter-group">
+        <rect x="727.28" y="269.69" width="340.13" height="510" fill="transparent" />
+        <polygon class="visual-shape" points="1067.41 269.69 954.46 269.69 953.43 269.69 841.26 269.69 840.48 269.69 727.28 269.69 727.28 658.91 840.48 658.91 840.48 779.69 954.46 779.69 954.46 658.91 1067.41 658.91 1067.41 269.69"/>
+      </g>
+      <g class="letter-group">
+        <rect x="1080.02" y="269.69" width="113.98" height="510" fill="transparent" />
+        <rect class="visual-shape" x="1080.02" y="269.69" width="113.98" height="510"/>
+      </g>
+      <g class="letter-group">
+        <rect x="1207.95" y="269.69" width="340.9" height="510" fill="transparent" />
+        <polygon class="visual-shape" points="1434.87 269.69 1434.87 269.69 1321.92 269.69 1320.9 269.69 1207.95 269.69 1207.95 779.69 1320.9 779.69 1321.92 779.69 1434.87 779.69 1434.87 779.69 1548.85 779.69 1548.85 269.69 1434.87 269.69"/>
+      </g>
+      <g class="letter-group">
+        <rect x="1562.69" y="269.69" width="340" height="510" fill="transparent" />
+        <polygon class="visual-shape" points="1788.72 269.69 1788.72 391.22 1676.67 270.22 1676.67 269.69 1676.17 269.69 1562.69 269.69 1562.69 779.69 1615.54 779.69 1676.67 779.69 1788.72 779.69 1870.92 779.69 1902.69 779.69 1902.69 269.69 1788.72 269.69"/>
+      </g>
+    </g>
+  </svg>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const permissionOverlay = document.getElementById('permission-overlay');
+      const permissionButton = document.getElementById('permission-button');
+      
+      const layer = document.getElementById('Layer_1');
+      const letterGroups = gsap.utils.toArray(".letter-group");
+      
+      const viewBox = { width: 1920, height: 1080 };
+
+      // Statische Geometrie der Buchstaben und des gesamten Blocks berechnen
+      const layerBox = layer.getBBox();
+      const wordCenter = {
+        x: layerBox.x + layerBox.width / 2,
+        y: layerBox.y + layerBox.height / 2
+      };
+
+      letterGroups.forEach(group => {
+        const groupBox = group.getBBox();
+        group.originalX = groupBox.x;
+        group.originalY = groupBox.y;
+        group.originalWidth = groupBox.width;
+        group.originalHeight = groupBox.height;
+        group.centerX = groupBox.x + groupBox.width / 2;
+        group.centerY = groupBox.y + groupBox.height / 2;
+        group.visualShape = group.querySelector('.visual-shape');
+      });
+
+      // Hilfsfunktion zum Umrechnen von Wertebereichen
+      const mapRange = (value, in_min, in_max, out_min, out_max) => {
+        return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+      }
+      
+      // Hauptfunktion, die die Animation steuert
+      function handleOrientation(event) {
+        // Gyroskop-Werte (links/rechts und vorne/hinten)
+        const gamma = event.gamma || 0; // -90 bis 90
+        const beta = event.beta || 0;   // -180 bis 180
+
+        // Wir definieren einen maximalen Neigungswinkel, um die Reaktion zu steuern
+        const maxTilt = 40.0;
+
+        // Normalisiere die Neigungswerte auf einen Bereich von -1 bis 1
+        const tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+        const tiltY = gsap.utils.clamp(-1, 1, (beta - 45) / maxTilt); // -45 als Kalibrierung für eine angenehme Haltung
+
+        // Parameter für die Animation
+        const maxSlide = 150; // Maximale Verschiebung des ganzen Blocks
+        const maxStretch = 300; // Maximale Dehnung der äußeren Buchstaben
+        const maxScale = 0.5; // Maximale Skalierungsänderung (z.B. 1.0 -> 1.5)
+
+        let futureLeft = Infinity, futureRight = -Infinity, futureTop = Infinity, futureBottom = -Infinity;
+
+        // Berechne die zukünftige Position und Größe für jeden Buchstaben
+        letterGroups.forEach(group => {
+            // Normalisierte Position des Buchstabens innerhalb des Wortes (-1 bis +1)
+            const normalizedPosX = (group.centerX - wordCenter.x) / (layerBox.width / 2);
+            const normalizedPosY = (group.centerY - wordCenter.y) / (layerBox.height / 2);
+
+            // 1. Verschiebung des gesamten Blocks (Sliding)
+            const slideX = tiltX * maxSlide;
+            const slideY = tiltY * maxSlide;
+
+            // 2. Individuelle Verschiebung durch Dehnung (Stretching)
+            const stretchX = tiltX * normalizedPosX * maxStretch;
+            const stretchY = tiltY * normalizedPosY * maxStretch;
+            
+            group.targetX = slideX + stretchX;
+            group.targetY = slideY + stretchY;
+            
+            // 3. Skalierung basierend auf Position und Neigung
+            group.targetScaleX = 1 + (tiltX * normalizedPosX * maxScale);
+            group.targetScaleY = 1 + (tiltY * normalizedPosY * maxScale);
+
+            // Berechne die Kanten der zukünftigen Bounding Box
+            const futureCenterX = group.centerX + group.targetX;
+            const futureCenterY = group.centerY + group.targetY;
+            const futureWidth = group.originalWidth * group.targetScaleX;
+            const futureHeight = group.originalHeight * group.targetScaleY;
+
+            futureLeft = Math.min(futureLeft, futureCenterX - futureWidth / 2);
+            futureRight = Math.max(futureRight, futureCenterX + futureWidth / 2);
+            futureTop = Math.min(futureTop, futureCenterY - futureHeight / 2);
+            futureBottom = Math.max(futureBottom, futureCenterY + futureHeight / 2);
+        });
+        
+        // Berechne die Korrektur, falls der Block über den Rand ragt
+        let correctionX = 0;
+        if (futureLeft < 0) correctionX = -futureLeft;
+        if (futureRight > viewBox.width) correctionX = viewBox.width - futureRight;
+        
+        let correctionY = 0;
+        if (futureTop < 0) correctionY = -futureTop;
+        if (futureBottom > viewBox.height) correctionY = viewBox.height - futureBottom;
+
+        // Animiere jeden Buchstaben zu seiner finalen, korrigierten Position
+        letterGroups.forEach(group => {
+            gsap.to(group, {
+                x: group.targetX + correctionX,
+                y: group.targetY + correctionY,
+                duration: 0.8,
+                ease: "power3.out",
+                overwrite: 'auto'
+            });
+
+            gsap.to(group.visualShape, {
+                scaleX: group.targetScaleX,
+                scaleY: group.targetScaleY,
+                transformOrigin: "center center",
+                duration: 0.8,
+                ease: "power3.out",
+                overwrite: 'auto'
+            });
+        });
+      }
+      
+      // Startet den Prozess nach Klick auf den Button
+      function startAnimation() {
+        // Prüfen, ob die DeviceOrientationEvent API und die requestPermission Methode existieren (für iOS 13+)
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        permissionOverlay.style.display = 'none';
+                    } else {
+                        permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert. Die Animation kann nicht gestartet werden.</p>";
+                    }
+                })
+                .catch(console.error);
+        } else {
+            // Für Android und ältere iOS-Versionen, wo keine Erlaubnis nötig ist
+            window.addEventListener('deviceorientation', handleOrientation);
+            permissionOverlay.style.display = 'none';
+        }
+      }
+
+      permissionButton.addEventListener('click', startAnimation);
+    });
+  </script>
+</body>
+</html>
