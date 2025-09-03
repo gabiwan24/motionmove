@@ -51,7 +51,6 @@
         font-size: 2.5rem;
         font-weight: 300;
         color: rgba(255, 255, 255, 0.7);
-        /* NEU: Verhindert das Markieren von Text */
         user-select: none;
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -70,7 +69,7 @@
 </head>
 <body>
 
-  <div id="version-display">v2.6</div>
+  <div id="version-display">v2.7</div>
 
   <div id="permission-overlay">
     <span id="go-text">Go</span>
@@ -139,8 +138,9 @@
         forceX = newForceX;
         
         let newForceY = 0;
-        const neutralBeta = 38; 
-        const maxBeta = 70; 
+        // NEU: Winkel angepasst
+        const neutralBeta = 50; 
+        const maxBeta = 80; 
         const minBeta = 0;  
 
         if (beta > neutralBeta) { 
@@ -209,7 +209,6 @@
                 .then(permissionState => {
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
-                        // NEU: Hartes Entfernen statt Fade-Out
                         permissionOverlay.style.display = 'none';
                         requestAnimationFrame(updateAnimation); 
                     } else {
@@ -219,7 +218,6 @@
                 .catch(console.error);
         } else {
             window.addEventListener('deviceorientation', handleOrientation);
-            // NEU: Hartes Entfernen statt Fade-Out
             permissionOverlay.style.display = 'none';
             requestAnimationFrame(updateAnimation);
         }
