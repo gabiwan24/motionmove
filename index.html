@@ -72,10 +72,10 @@
 </head>
 <body>
 
-  <div id="version-display">v1.7</div>
+  <div id="version-display">v1.8</div>
 
   <div id="permission-overlay">
-    <h1>Kanten-Physik</h1>
+    <h1>Kanten-Dynamik</h1>
     <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
     <button id="permission-button">Starten</button>
   </div>
@@ -95,90 +95,79 @@
       const viewBox = { width: 1920, height: 1080 };
 
       // Statische Eigenschaften des Quadrats in seiner Ruheposition
-      const initialWidth = 150;
-      const initialHeight = 150;
+      const minWidth = 150;
+      const minHeight = 150;
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
-      const initialLeft = centerX - initialWidth / 2;
-      const initialRight = centerX + initialWidth / 2;
-      const initialTop = centerY - initialHeight / 2;
-      const initialBottom = centerY + initialHeight / 2;
+      
+      const neutralLeft = centerX - minWidth / 2;
+      const neutralRight = centerX + minWidth / 2;
+      const neutralTop = centerY - minHeight / 2;
+      const neutralBottom = centerY + minHeight / 2;
 
-      gsap.set(square, { x: initialLeft, y: initialTop, width: initialWidth, height: initialHeight });
+      gsap.set(square, { x: neutralLeft, y: neutralTop, width: minWidth, height: minHeight });
 
-      // Physik-Engine für eine unsichtbare "Kugel"
-      let ballX = centerX, ballY = centerY;
-      let velocityX = 0, velocityY = 0;
+      // Zustand der aktuellen "Kraft"
       let forceX = 0, forceY = 0;
-
-      const gravity = 0.8; // Erhöht für bessere Reaktion
-      const friction = 0.95; // Etwas weniger Reibung
-      const bounciness = 0.6; 
-      const collisionState = { left: false, right: false, top: false, bottom: false };
       
       function handleOrientation(event) {
+        // Gamma: Y-Achse des Bildes (links/rechts)
         const gamma = event.gamma || 0; 
+        // Beta: X-Achse des Bildes (vor/zurück)
         const beta = event.beta || 0;   
+        
         const maxTilt = 45.0; 
-        const deadzone = 1.0; 
+        const deadzone = 2.0; 
 
+        // Links/Rechts-Kraft berechnen
         let newForceX = 0;
         if (Math.abs(gamma) > deadzone) {
             newForceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
         }
         forceX = newForceX;
         
+        // Vor/Zurück-Kraft berechnen (mit 45-Grad-Kalibrierung)
         let newForceY = 0;
         const calibratedBeta = beta - 45;
         if (Math.abs(calibratedBeta) > deadzone) {
+            // Umkehrung, damit "flach halten" (beta > 45) nach OBEN geht
             newForceY = -gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
         }
         forceY = newForceY;
       }
 
       function updateAnimation() {
-        // 1. Physik der unsichtbaren Kugel berechnen
-        velocityX += forceX * gravity;
-        velocityY += forceY * gravity;
-        velocityX *= friction;
-        velocityY *= friction;
-        ballX += velocityX;
-        ballY += velocityY;
+        // Startpunkte sind immer die Kanten des neutralen Quadrats
+        let newLeft = neutralLeft;
+        let newRight = neutralRight;
+        let newTop = neutralTop;
+        let newBottom = neutralBottom;
 
-        // 2. Kollision der Kugel mit den Rändern
-        const checkCollision = (isColliding, side) => {
-             if (isColliding) {
-                if (!collisionState[side]) {
-                    if (navigator.vibrate) navigator.vibrate(20);
-                    collisionState[side] = true;
-                }
-            } else {
-                collisionState[side] = false;
-            }
+        // Kanten basierend auf der Kraft ausdehnen
+        if (forceX > 0) { // Nach rechts neigen
+            newRight = neutralRight + forceX * (viewBox.width - neutralRight);
+        } else if (forceX < 0) { // Nach links neigen
+            newLeft = neutralLeft + forceX * neutralLeft; // forceX ist negativ
         }
 
-        if (ballX < 0) { ballX = 0; velocityX *= -bounciness; checkCollision(true, 'left'); }
-        else if (ballX > viewBox.width) { ballX = viewBox.width; velocityX *= -bounciness; checkCollision(true, 'right'); }
-        else { checkCollision(false, 'left'); checkCollision(false, 'right'); }
-
-        if (ballY < 0) { ballY = 0; velocityY *= -bounciness; checkCollision(true, 'top'); }
-        else if (ballY > viewBox.height) { ballY = viewBox.height; velocityY *= -bounciness; checkCollision(true, 'bottom'); }
-        else { checkCollision(false, 'top'); checkCollision(false, 'bottom'); }
-
-        // 3. Position der Kugel auf die Kanten des sichtbaren Quadrats übertragen
-        let newLeft = initialLeft, newRight = initialRight, newTop = initialTop, newBottom = initialBottom;
-
-        if (ballX > centerX) newRight = ballX;
-        else if (ballX < centerX) newLeft = ballX;
-
-        if (ballY > centerY) newBottom = ballY;
-        else if (ballY < centerY) newTop = ballY;
+        if (forceY > 0) { // Nach "oben" neigen (Handy flacher)
+            newTop = neutralTop - forceY * neutralTop; // forceY ist "positiv", aber Bewegung nach oben (Richtung 0)
+        } else if (forceY < 0) { // Nach "unten" neigen (Handy aufrechter)
+            newBottom = neutralBottom - forceY * (viewBox.height - neutralBottom); // forceY ist negativ
+        }
         
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
 
-        // 4. Sichtbares Quadrat aktualisieren
-        gsap.set(square, { x: newLeft, y: newTop, width: newWidth, height: newHeight });
+        // Wende die Transformation sanft an für ein flüssiges Gefühl
+        gsap.to(square, { 
+            x: newLeft, 
+            y: newTop, 
+            width: newWidth, 
+            height: newHeight,
+            duration: 0.5,
+            ease: "power2.out"
+        });
 
         requestAnimationFrame(updateAnimation);
       }
