@@ -60,9 +60,21 @@
       cursor: pointer;
       transition: background-color 0.2s, transform 0.2s;
     }
+
+    /* NEU: Versionsanzeige */
+    #version-display {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+      z-index: 5;
+    }
   </style>
 </head>
 <body>
+
+  <div id="version-display">v1.4</div>
 
   <div id="permission-overlay">
     <h1>Gyro-Gravitation</h1>
@@ -71,7 +83,6 @@
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
-    <!-- Das Quadrat wird nun über transform zentriert, um die Berechnungen zu vereinfachen -->
     <rect id="gyro-square" x="0" y="0" width="400" height="400" />
   </svg>
 
@@ -90,79 +101,78 @@
         height: parseFloat(square.getAttribute('height')),
       };
 
-      // Das Quadrat initial exakt in die Mitte setzen
       const initialX = (viewBox.width - squareProps.width) / 2;
       const initialY = (viewBox.height - squareProps.height) / 2;
       gsap.set(square, { x: initialX, y: initialY });
 
+      // NEU: Zustand für die Randberührung (für Vibration)
+      const collisionState = { left: false, right: false, top: false, bottom: false };
 
       function handleOrientation(event) {
         const gamma = event.gamma || 0; 
         const beta = event.beta || 0;   
 
-        const maxTilt = 45.0; // Sensitivität
-        const deadzone = 2.0; 
+        const maxTilt = 45.0; 
+        const deadzone = 1.0; // Verkleinert für bessere Reaktion
 
-        // Kalibrierte Neigungswerte von -1 bis 1 berechnen
         let forceX = 0;
         if (Math.abs(gamma) > deadzone) {
             forceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
         }
         
         let forceY = 0;
+        // Die 45-Grad-Kalibrierung bleibt: Eine bequeme Handy-Haltung ist neutral.
         const calibratedBeta = beta - 45;
         if (Math.abs(calibratedBeta) > deadzone) {
             forceY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
         }
 
-        // =================================================================
-        // Gravitations-Modell: Berechne Skalierung und Verschiebung
-        // =================================================================
-        const maxStretchFactor = 3.0; // Maximale Verzerrung
-
-        // Die Skalierung nimmt in beide Richtungen zu
+        const maxStretchFactor = 3.0; 
         let targetScaleX = 1 + Math.abs(forceX) * (maxStretchFactor - 1);
         let targetScaleY = 1 + Math.abs(forceY) * (maxStretchFactor - 1);
 
-        // Die Verschiebung simuliert das "Ziehen" in eine Richtung
-        // Es verschiebt das Zentrum, um die gegenüberliegende Seite zu verankern
         let targetTranslateX = forceX * ((targetScaleX - 1) * squareProps.width) / 2;
         let targetTranslateY = forceY * ((targetScaleY - 1) * squareProps.height) / 2;
-
-        // =================================================================
-        // Robuste Rand-Kollision
-        // =================================================================
+        
         const futureWidth = squareProps.width * targetScaleX;
         const futureHeight = squareProps.height * targetScaleY;
         
-        // Berechne die zukünftigen Koordinaten der Kanten
         let futureLeft = initialX + targetTranslateX - (futureWidth / 2);
         let futureRight = initialX + targetTranslateX + (futureWidth / 2);
         let futureTop = initialY + targetTranslateY - (futureHeight / 2);
         let futureBottom = initialY + targetTranslateY + (futureHeight / 2);
 
-        // Korrigiere die Verschiebung, falls eine Kante den Rand überschreitet
-        if (futureLeft < 0) {
-            targetTranslateX -= futureLeft;
-        }
-        if (futureRight > viewBox.width) {
-            targetTranslateX -= (futureRight - viewBox.width);
-        }
-        if (futureTop < 0) {
-            targetTranslateY -= futureTop;
-        }
-        if (futureBottom > viewBox.height) {
-            targetTranslateY -= (futureBottom - viewBox.height);
+        // NEU: Logik für Vibrations-Feedback bei Kollision
+        const isCollidingLeft = futureLeft < 0;
+        const isCollidingRight = futureRight > viewBox.width;
+        const isCollidingTop = futureTop < 0;
+        const isCollidingBottom = futureBottom > viewBox.height;
+
+        // Vibration nur beim ersten Kontakt auslösen
+        if (navigator.vibrate) {
+            if (isCollidingLeft && !collisionState.left) navigator.vibrate(50);
+            if (isCollidingRight && !collisionState.right) navigator.vibrate(50);
+            if (isCollidingTop && !collisionState.top) navigator.vibrate(50);
+            if (isCollidingBottom && !collisionState.bottom) navigator.vibrate(50);
         }
 
-        // Animation mit den finalen, korrigierten Werten
+        // Kollisions-Zustand für den nächsten Frame aktualisieren
+        collisionState.left = isCollidingLeft;
+        collisionState.right = isCollidingRight;
+        collisionState.top = isCollidingTop;
+        collisionState.bottom = isCollidingBottom;
+
+        // Korrigiere die Verschiebung, falls eine Kante den Rand überschreitet
+        if (isCollidingLeft) targetTranslateX -= futureLeft;
+        if (isCollidingRight) targetTranslateX -= (futureRight - viewBox.width);
+        if (isCollidingTop) targetTranslateY -= futureTop;
+        if (isCollidingBottom) targetTranslateY -= (futureBottom - viewBox.height);
+        
         gsap.to(square, {
-            // Die Verschiebung wird zum initialen Zentrierungswert addiert
             x: initialX + targetTranslateX,
             y: initialY + targetTranslateY,
             scaleX: targetScaleX,
             scaleY: targetScaleY,
-            // Der Ankerpunkt ist immer die Mitte, die Verschiebung erzeugt den "Zerren"-Effekt
             transformOrigin: "center center",
             duration: 0.8,
             ease: "power3.out",
