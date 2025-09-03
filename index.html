@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (Kanten-Physik)</title>
+  <title>MOTION SVG mit Gyroskop (Dynamische Kanten)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -14,7 +14,7 @@
     html, body {
       height: 100%;
       width: 100%;
-      overflow: hidden; /* Verhindert Scrollen auf Mobilgeräten */
+      overflow: hidden;
     }
     body {
       margin: 0;
@@ -24,10 +24,13 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     
+    /* NEU: SVG füllt den gesamten Bildschirm, unabhängig vom Seitenverhältnis */
     svg {
-      width: min(95vw, calc(95vh * 16 / 9));
-      aspect-ratio: 16 / 9;
-      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden; 
     }
 
@@ -72,7 +75,7 @@
 </head>
 <body>
 
-  <div id="version-display">v1.8</div>
+  <div id="version-display">v1.9</div>
 
   <div id="permission-overlay">
     <h1>Kanten-Dynamik</h1>
@@ -80,7 +83,7 @@
     <button id="permission-button">Starten</button>
   </div>
 
-  <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
+  <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" fill="white">
     <rect id="gyro-square" x="0" y="0" width="150" height="150" />
   </svg>
 
@@ -91,10 +94,17 @@
       const permissionOverlay = document.getElementById('permission-overlay');
       const permissionButton = document.getElementById('permission-button');
       
+      const svg = document.getElementById('motion-svg');
       const square = document.getElementById('gyro-square');
-      const viewBox = { width: 1920, height: 1080 };
+      
+      // NEU: Bildschirmauflösung dynamisch erkennen
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      // NEU: SVG-ViewBox an die Bildschirmgröße anpassen
+      svg.setAttribute('viewBox', `0 0 ${screenWidth} ${screenHeight}`);
+      const viewBox = { width: screenWidth, height: screenHeight };
 
-      // Statische Eigenschaften des Quadrats in seiner Ruheposition
       const minWidth = 150;
       const minHeight = 150;
       const centerX = viewBox.width / 2;
@@ -107,59 +117,54 @@
 
       gsap.set(square, { x: neutralLeft, y: neutralTop, width: minWidth, height: minHeight });
 
-      // Zustand der aktuellen "Kraft"
       let forceX = 0, forceY = 0;
       
       function handleOrientation(event) {
-        // Gamma: Y-Achse des Bildes (links/rechts)
         const gamma = event.gamma || 0; 
-        // Beta: X-Achse des Bildes (vor/zurück)
         const beta = event.beta || 0;   
         
-        const maxTilt = 45.0; 
+        const tiltRangeX = 45.0; 
+        const tiltRangeY = 45.0; // Der Bereich von 45° (neutral) zu 0° oder 90°
         const deadzone = 2.0; 
 
-        // Links/Rechts-Kraft berechnen
         let newForceX = 0;
         if (Math.abs(gamma) > deadzone) {
-            newForceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+            newForceX = gsap.utils.clamp(-1, 1, gamma / tiltRangeX);
         }
         forceX = newForceX;
         
-        // Vor/Zurück-Kraft berechnen (mit 45-Grad-Kalibrierung)
+        // NEU: Korrigierte Logik für die Beta-Achse
         let newForceY = 0;
-        const calibratedBeta = beta - 45;
+        const calibratedBeta = beta - 45; // 45° ist die Mitte
         if (Math.abs(calibratedBeta) > deadzone) {
-            // Umkehrung, damit "flach halten" (beta > 45) nach OBEN geht
-            newForceY = -gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+            // Positive Werte -> nach unten neigen, Negative Werte -> nach oben neigen
+            newForceY = gsap.utils.clamp(-1, 1, calibratedBeta / tiltRangeY);
         }
         forceY = newForceY;
       }
 
       function updateAnimation() {
-        // Startpunkte sind immer die Kanten des neutralen Quadrats
         let newLeft = neutralLeft;
         let newRight = neutralRight;
         let newTop = neutralTop;
         let newBottom = neutralBottom;
 
         // Kanten basierend auf der Kraft ausdehnen
-        if (forceX > 0) { // Nach rechts neigen
+        if (forceX > 0) { // Nach rechts
             newRight = neutralRight + forceX * (viewBox.width - neutralRight);
-        } else if (forceX < 0) { // Nach links neigen
-            newLeft = neutralLeft + forceX * neutralLeft; // forceX ist negativ
+        } else if (forceX < 0) { // Nach links
+            newLeft = neutralLeft + forceX * neutralLeft;
         }
 
-        if (forceY > 0) { // Nach "oben" neigen (Handy flacher)
-            newTop = neutralTop - forceY * neutralTop; // forceY ist "positiv", aber Bewegung nach oben (Richtung 0)
-        } else if (forceY < 0) { // Nach "unten" neigen (Handy aufrechter)
-            newBottom = neutralBottom - forceY * (viewBox.height - neutralBottom); // forceY ist negativ
+        if (forceY > 0) { // Nach unten (Handy aufrecht)
+            newBottom = neutralBottom + forceY * (viewBox.height - neutralBottom);
+        } else if (forceY < 0) { // Nach oben (Handy flach)
+            newTop = neutralTop + forceY * neutralTop; 
         }
         
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
 
-        // Wende die Transformation sanft an für ein flüssiges Gefühl
         gsap.to(square, { 
             x: newLeft, 
             y: newTop, 
@@ -197,4 +202,3 @@
   </script>
 </body>
 </html>
-
