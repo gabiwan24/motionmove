@@ -28,7 +28,6 @@
       width: min(95vw, calc(95vh * 16 / 9));
       aspect-ratio: 16 / 9;
       display: block;
-      /* Verhindert visuelles Überlaufen, falls die Logik je einen Frame hinterherhinkt */
       overflow: hidden; 
     }
 
@@ -61,7 +60,6 @@
       transition: background-color 0.2s, transform 0.2s;
     }
 
-    /* NEU: Versionsanzeige */
     #version-display {
       position: absolute;
       top: 15px;
@@ -74,7 +72,7 @@
 </head>
 <body>
 
-  <div id="version-display">v1.4</div>
+  <div id="version-display">v1.5</div>
 
   <div id="permission-overlay">
     <h1>Gyro-Gravitation</h1>
@@ -105,79 +103,107 @@
       const initialY = (viewBox.height - squareProps.height) / 2;
       gsap.set(square, { x: initialX, y: initialY });
 
-      // NEU: Zustand für die Randberührung (für Vibration)
-      const collisionState = { left: false, right: false, top: false, bottom: false };
+      // =================================================================
+      // NEUE ANIMATIONS-ENGINE
+      // =================================================================
+      let forceX = 0, forceY = 0;
+      let currentTranslateX = 0, currentTranslateY = 0;
+      let currentScaleX = 1, currentScaleY = 1;
 
+      const collisionState = { left: false, right: false, top: false, bottom: false };
+      
       function handleOrientation(event) {
         const gamma = event.gamma || 0; 
         const beta = event.beta || 0;   
 
         const maxTilt = 45.0; 
-        const deadzone = 1.0; // Verkleinert für bessere Reaktion
+        const deadzone = 1.0; 
 
-        let forceX = 0;
+        // Diese Funktion aktualisiert nur noch die "Kräfte", die in der Schleife wirken
+        let newForceX = 0;
         if (Math.abs(gamma) > deadzone) {
-            forceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+            newForceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
         }
+        forceX = newForceX;
         
-        let forceY = 0;
-        // Die 45-Grad-Kalibrierung bleibt: Eine bequeme Handy-Haltung ist neutral.
+        let newForceY = 0;
         const calibratedBeta = beta - 45;
         if (Math.abs(calibratedBeta) > deadzone) {
-            forceY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+            newForceY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
         }
+        forceY = newForceY;
+      }
 
-        const maxStretchFactor = 3.0; 
+      function updateAnimation() {
+        const flowSpeed = 0.8; // Wie schnell das Quadrat auf die Neigung reagiert
+        const returnSpeed = 0.05; // Wie schnell es in die Mitte zurückkehrt (Dämpfung)
+        const maxStretchFactor = 3.0;
+
+        // Berechne die Ziel-Transformation basierend auf der aktuellen Kraft
         let targetScaleX = 1 + Math.abs(forceX) * (maxStretchFactor - 1);
         let targetScaleY = 1 + Math.abs(forceY) * (maxStretchFactor - 1);
-
         let targetTranslateX = forceX * ((targetScaleX - 1) * squareProps.width) / 2;
         let targetTranslateY = forceY * ((targetScaleY - 1) * squareProps.height) / 2;
         
-        const futureWidth = squareProps.width * targetScaleX;
-        const futureHeight = squareProps.height * targetScaleY;
+        // Fließe langsam zum Ziel (Gummiband-Effekt wird hier erzeugt)
+        // Um ein hartes Fließen zu erzeugen, würden wir die Werte direkt setzen
+        // Aber für ein "flüssiges" Gefühl ist ein leichtes Smoothing besser.
+        // Wir verwenden eine lineare Interpolation (lerp) für ein "flüssiges" Gefühl
+        currentScaleX += (targetScaleX - currentScaleX) * flowSpeed;
+        currentScaleY += (targetScaleY - currentScaleY) * flowSpeed;
+        currentTranslateX += (targetTranslateX - currentTranslateX) * flowSpeed;
+        currentTranslateY += (targetTranslateY - currentTranslateY) * flowSpeed;
         
-        let futureLeft = initialX + targetTranslateX - (futureWidth / 2);
-        let futureRight = initialX + targetTranslateX + (futureWidth / 2);
-        let futureTop = initialY + targetTranslateY - (futureHeight / 2);
-        let futureBottom = initialY + targetTranslateY + (futureHeight / 2);
-
-        // NEU: Logik für Vibrations-Feedback bei Kollision
-        const isCollidingLeft = futureLeft < 0;
-        const isCollidingRight = futureRight > viewBox.width;
-        const isCollidingTop = futureTop < 0;
-        const isCollidingBottom = futureBottom > viewBox.height;
-
-        // Vibration nur beim ersten Kontakt auslösen
-        if (navigator.vibrate) {
-            if (isCollidingLeft && !collisionState.left) navigator.vibrate(50);
-            if (isCollidingRight && !collisionState.right) navigator.vibrate(50);
-            if (isCollidingTop && !collisionState.top) navigator.vibrate(50);
-            if (isCollidingBottom && !collisionState.bottom) navigator.vibrate(50);
+        // Dämpfung: Wenn keine Kraft wirkt, fließe langsam in den Ruhezustand zurück
+        if (forceX === 0) {
+            currentScaleX += (1 - currentScaleX) * returnSpeed;
+            currentTranslateX += (0 - currentTranslateX) * returnSpeed;
+        }
+        if (forceY === 0) {
+            currentScaleY += (1 - currentScaleY) * returnSpeed;
+            currentTranslateY += (0 - currentTranslateY) * returnSpeed;
         }
 
-        // Kollisions-Zustand für den nächsten Frame aktualisieren
-        collisionState.left = isCollidingLeft;
-        collisionState.right = isCollidingRight;
-        collisionState.top = isCollidingTop;
-        collisionState.bottom = isCollidingBottom;
-
-        // Korrigiere die Verschiebung, falls eine Kante den Rand überschreitet
-        if (isCollidingLeft) targetTranslateX -= futureLeft;
-        if (isCollidingRight) targetTranslateX -= (futureRight - viewBox.width);
-        if (isCollidingTop) targetTranslateY -= futureTop;
-        if (isCollidingBottom) targetTranslateY -= (futureBottom - viewBox.height);
+        const currentWidth = squareProps.width * currentScaleX;
+        const currentHeight = squareProps.height * currentScaleY;
         
-        gsap.to(square, {
-            x: initialX + targetTranslateX,
-            y: initialY + targetTranslateY,
-            scaleX: targetScaleX,
-            scaleY: targetScaleY,
+        let futureLeft = initialX + currentTranslateX - (currentWidth / 2);
+        let futureRight = initialX + currentTranslateX + (currentWidth / 2);
+        let futureTop = initialY + currentTranslateY - (currentHeight / 2);
+        let futureBottom = initialY + currentTranslateY + (currentHeight / 2);
+
+        // Harter Anschlag und Vibration
+        const checkCollision = (isColliding, side) => {
+            if (isColliding) {
+                if (!collisionState[side]) {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    collisionState[side] = true;
+                }
+            } else {
+                collisionState[side] = false;
+            }
+        };
+
+        checkCollision(futureLeft < 0, 'left');
+        checkCollision(futureRight > viewBox.width, 'right');
+        checkCollision(futureTop < 0, 'top');
+        checkCollision(futureBottom > viewBox.height, 'bottom');
+
+        if (futureLeft < 0) currentTranslateX -= futureLeft;
+        if (futureRight > viewBox.width) currentTranslateX -= (futureRight - viewBox.width);
+        if (futureTop < 0) currentTranslateY -= futureTop;
+        if (futureBottom > viewBox.height) currentTranslateY -= (futureBottom - viewBox.height);
+
+        // Wende die finale Transformation an
+        gsap.set(square, {
+            x: initialX + currentTranslateX,
+            y: initialY + currentTranslateY,
+            scaleX: currentScaleX,
+            scaleY: currentScaleY,
             transformOrigin: "center center",
-            duration: 0.8,
-            ease: "power3.out",
-            overwrite: 'auto'
         });
+
+        requestAnimationFrame(updateAnimation); // Die Schleife fortsetzen
       }
       
       function startAnimation() {
@@ -187,14 +213,17 @@
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
                         permissionOverlay.style.display = 'none';
+                        requestAnimationFrame(updateAnimation); // Starte die Animationsschleife
                     } else {
                         permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
                     }
                 })
                 .catch(console.error);
         } else {
+            // Für andere Geräte, die keine explizite Erlaubnis benötigen
             window.addEventListener('deviceorientation', handleOrientation);
             permissionOverlay.style.display = 'none';
+            requestAnimationFrame(updateAnimation); // Starte die Animationsschleife
         }
       }
 
@@ -203,3 +232,4 @@
   </script>
 </body>
 </html>
+
