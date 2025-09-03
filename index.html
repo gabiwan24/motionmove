@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (Dynamische Kanten)</title>
+  <title>MOTION SVG mit Gyroskop (Finale Typo)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -24,7 +24,6 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     
-    /* NEU: SVG füllt den gesamten Bildschirm, unabhängig vom Seitenverhältnis */
     svg {
       position: absolute;
       top: 0;
@@ -75,16 +74,24 @@
 </head>
 <body>
 
-  <div id="version-display">v1.9</div>
+  <div id="version-display">v2.0</div>
 
   <div id="permission-overlay">
-    <h1>Kanten-Dynamik</h1>
+    <h1>Typo-Dynamik</h1>
     <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
     <button id="permission-button">Starten</button>
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" fill="white">
-    <rect id="gyro-square" x="0" y="0" width="150" height="150" />
+    <!-- Die Typografie ist zurück -->
+    <g id="motion-word">
+        <polygon points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
+        <polygon points="600.18 269.69 600.18 269.69 487.23 269.69 486.2 269.69 373.25 269.69 373.25 779.69 486.2 779.69 487.23 779.69 600.18 779.69 600.18 779.69 714.15 779.69 714.15 269.69 600.18 269.69"/>
+        <polygon points="1067.41 269.69 954.46 269.69 953.43 269.69 841.26 269.69 840.48 269.69 727.28 269.69 727.28 658.91 840.48 658.91 840.48 779.69 954.46 779.69 954.46 658.91 1067.41 658.91 1067.41 269.69"/>
+        <rect x="1080.02" y="269.69" width="113.98" height="510"/>
+        <polygon points="1434.87 269.69 1434.87 269.69 1321.92 269.69 1320.9 269.69 1207.95 269.69 1207.95 779.69 1320.9 779.69 1321.92 779.69 1434.87 779.69 1434.87 779.69 1548.85 779.69 1548.85 269.69 1434.87 269.69"/>
+        <polygon points="1788.72 269.69 1788.72 391.22 1676.67 270.22 1676.67 269.69 1676.17 269.69 1562.69 269.69 1562.69 779.69 1615.54 779.69 1676.67 779.69 1788.72 779.69 1870.92 779.69 1902.69 779.69 1902.69 269.69 1788.72 269.69"/>
+    </g>
   </svg>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -95,27 +102,37 @@
       const permissionButton = document.getElementById('permission-button');
       
       const svg = document.getElementById('motion-svg');
-      const square = document.getElementById('gyro-square');
+      const word = document.getElementById('motion-word');
       
-      // NEU: Bildschirmauflösung dynamisch erkennen
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
       
-      // NEU: SVG-ViewBox an die Bildschirmgröße anpassen
       svg.setAttribute('viewBox', `0 0 ${screenWidth} ${screenHeight}`);
       const viewBox = { width: screenWidth, height: screenHeight };
 
-      const minWidth = 150;
-      const minHeight = 150;
+      // Original-Dimensionen der Typo als Referenz
+      const originalBBox = word.getBBox();
+
+      // Berechne die ZIEL-Größe in der neutralen Position
+      const neutralWidth = screenWidth * 0.5;
+      const neutralHeight = neutralWidth / (originalBBox.width / originalBBox.height);
+      
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
       
-      const neutralLeft = centerX - minWidth / 2;
-      const neutralRight = centerX + minWidth / 2;
-      const neutralTop = centerY - minHeight / 2;
-      const neutralBottom = centerY + minHeight / 2;
+      const neutralLeft = centerX - neutralWidth / 2;
+      const neutralRight = centerX + neutralWidth / 2;
+      const neutralTop = centerY - neutralHeight / 2;
+      const neutralBottom = centerY + neutralHeight / 2;
 
-      gsap.set(square, { x: neutralLeft, y: neutralTop, width: minWidth, height: minHeight });
+      // Initiale Transformation, um die Typo in die neutrale Box einzupassen
+      gsap.set(word, {
+        x: neutralLeft,
+        y: neutralTop,
+        scaleX: neutralWidth / originalBBox.width,
+        scaleY: neutralHeight / originalBBox.height,
+        transformOrigin: `${originalBBox.x}px ${originalBBox.y}px`
+      });
 
       let forceX = 0, forceY = 0;
       
@@ -124,7 +141,6 @@
         const beta = event.beta || 0;   
         
         const tiltRangeX = 45.0; 
-        const tiltRangeY = 45.0; // Der Bereich von 45° (neutral) zu 0° oder 90°
         const deadzone = 2.0; 
 
         let newForceX = 0;
@@ -133,12 +149,18 @@
         }
         forceX = newForceX;
         
-        // NEU: Korrigierte Logik für die Beta-Achse
+        // NEU: Logik mit 70 Grad als Maximum
         let newForceY = 0;
-        const calibratedBeta = beta - 45; // 45° ist die Mitte
-        if (Math.abs(calibratedBeta) > deadzone) {
-            // Positive Werte -> nach unten neigen, Negative Werte -> nach oben neigen
-            newForceY = gsap.utils.clamp(-1, 1, calibratedBeta / tiltRangeY);
+        const neutralBeta = 45;
+        const maxBeta = 70; // Aufrecht
+        const minBeta = 0;  // Flach
+
+        if (beta > neutralBeta) { // Richtung aufrecht
+            const range = maxBeta - neutralBeta; // 25
+            newForceY = gsap.utils.clamp(0, 1, (beta - neutralBeta) / range);
+        } else { // Richtung flach
+            const range = neutralBeta - minBeta; // 45
+            newForceY = gsap.utils.clamp(-1, 0, (beta - neutralBeta) / range);
         }
         forceY = newForceY;
       }
@@ -149,27 +171,26 @@
         let newTop = neutralTop;
         let newBottom = neutralBottom;
 
-        // Kanten basierend auf der Kraft ausdehnen
-        if (forceX > 0) { // Nach rechts
+        if (forceX > 0) { // Rechts
             newRight = neutralRight + forceX * (viewBox.width - neutralRight);
-        } else if (forceX < 0) { // Nach links
+        } else if (forceX < 0) { // Links
             newLeft = neutralLeft + forceX * neutralLeft;
         }
 
-        if (forceY > 0) { // Nach unten (Handy aufrecht)
+        if (forceY > 0) { // Unten (aufrecht)
             newBottom = neutralBottom + forceY * (viewBox.height - neutralBottom);
-        } else if (forceY < 0) { // Nach oben (Handy flach)
+        } else if (forceY < 0) { // Oben (flach)
             newTop = neutralTop + forceY * neutralTop; 
         }
         
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
 
-        gsap.to(square, { 
-            x: newLeft, 
-            y: newTop, 
-            width: newWidth, 
-            height: newHeight,
+        gsap.to(word, { 
+            x: newLeft,
+            y: newTop,
+            scaleX: newWidth / originalBBox.width,
+            scaleY: newHeight / originalBBox.height,
             duration: 0.5,
             ease: "power2.out"
         });
