@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (Gravitation)</title>
+  <title>MOTION SVG mit Gyroskop (Kugel-Simulation)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -72,16 +72,16 @@
 </head>
 <body>
 
-  <div id="version-display">v1.5</div>
+  <div id="version-display">v1.6</div>
 
   <div id="permission-overlay">
-    <h1>Gyro-Gravitation</h1>
+    <h1>Gyro-Kugel</h1>
     <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
     <button id="permission-button">Starten</button>
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
-    <rect id="gyro-square" x="0" y="0" width="400" height="400" />
+    <rect id="gyro-square" x="0" y="0" width="150" height="150" />
   </svg>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -99,16 +99,20 @@
         height: parseFloat(square.getAttribute('height')),
       };
 
-      const initialX = (viewBox.width - squareProps.width) / 2;
-      const initialY = (viewBox.height - squareProps.height) / 2;
-      gsap.set(square, { x: initialX, y: initialY });
+      // Startposition des Quadrats
+      let currentX = (viewBox.width - squareProps.width) / 2;
+      let currentY = (viewBox.height - squareProps.height) / 2;
+      gsap.set(square, { x: currentX, y: currentY });
 
       // =================================================================
-      // NEUE ANIMATIONS-ENGINE
+      // NEUE PHYSIK-ENGINE
       // =================================================================
-      let forceX = 0, forceY = 0;
-      let currentTranslateX = 0, currentTranslateY = 0;
-      let currentScaleX = 1, currentScaleY = 1;
+      let forceX = 0, forceY = 0; // Beschleunigung durch Neigung
+      let velocityX = 0, velocityY = 0; // Aktuelle Geschwindigkeit
+
+      const gravity = 0.5; // Stärke der "Anziehungskraft"
+      const friction = 0.98; // Reibung, damit die Kugel abbremst
+      const bounciness = 0.75; // Energieverlust beim Aufprall (0=stoppt, 1=perfekter Abprall)
 
       const collisionState = { left: false, right: false, top: false, bottom: false };
       
@@ -119,7 +123,6 @@
         const maxTilt = 45.0; 
         const deadzone = 1.0; 
 
-        // Diese Funktion aktualisiert nur noch die "Kräfte", die in der Schleife wirken
         let newForceX = 0;
         if (Math.abs(gamma) > deadzone) {
             newForceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
@@ -127,81 +130,70 @@
         forceX = newForceX;
         
         let newForceY = 0;
+        // Die 45-Grad Kalibrierung gilt immer noch
         const calibratedBeta = beta - 45;
         if (Math.abs(calibratedBeta) > deadzone) {
-            newForceY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+            // Beta-Achse ist oft invertiert, daher das Minuszeichen
+            newForceY = -gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
         }
         forceY = newForceY;
       }
 
       function updateAnimation() {
-        const flowSpeed = 0.8; // Wie schnell das Quadrat auf die Neigung reagiert
-        const returnSpeed = 0.05; // Wie schnell es in die Mitte zurückkehrt (Dämpfung)
-        const maxStretchFactor = 3.0;
+        // 1. Geschwindigkeit basierend auf Kraft aktualisieren
+        velocityX += forceX * gravity;
+        velocityY += forceY * gravity;
 
-        // Berechne die Ziel-Transformation basierend auf der aktuellen Kraft
-        let targetScaleX = 1 + Math.abs(forceX) * (maxStretchFactor - 1);
-        let targetScaleY = 1 + Math.abs(forceY) * (maxStretchFactor - 1);
-        let targetTranslateX = forceX * ((targetScaleX - 1) * squareProps.width) / 2;
-        let targetTranslateY = forceY * ((targetScaleY - 1) * squareProps.height) / 2;
-        
-        // Fließe langsam zum Ziel (Gummiband-Effekt wird hier erzeugt)
-        // Um ein hartes Fließen zu erzeugen, würden wir die Werte direkt setzen
-        // Aber für ein "flüssiges" Gefühl ist ein leichtes Smoothing besser.
-        // Wir verwenden eine lineare Interpolation (lerp) für ein "flüssiges" Gefühl
-        currentScaleX += (targetScaleX - currentScaleX) * flowSpeed;
-        currentScaleY += (targetScaleY - currentScaleY) * flowSpeed;
-        currentTranslateX += (targetTranslateX - currentTranslateX) * flowSpeed;
-        currentTranslateY += (targetTranslateY - currentTranslateY) * flowSpeed;
-        
-        // Dämpfung: Wenn keine Kraft wirkt, fließe langsam in den Ruhezustand zurück
-        if (forceX === 0) {
-            currentScaleX += (1 - currentScaleX) * returnSpeed;
-            currentTranslateX += (0 - currentTranslateX) * returnSpeed;
-        }
-        if (forceY === 0) {
-            currentScaleY += (1 - currentScaleY) * returnSpeed;
-            currentTranslateY += (0 - currentTranslateY) * returnSpeed;
-        }
+        // 2. Reibung anwenden
+        velocityX *= friction;
+        velocityY *= friction;
 
-        const currentWidth = squareProps.width * currentScaleX;
-        const currentHeight = squareProps.height * currentScaleY;
-        
-        let futureLeft = initialX + currentTranslateX - (currentWidth / 2);
-        let futureRight = initialX + currentTranslateX + (currentWidth / 2);
-        let futureTop = initialY + currentTranslateY - (currentHeight / 2);
-        let futureBottom = initialY + currentTranslateY + (currentHeight / 2);
+        // 3. Position basierend auf Geschwindigkeit aktualisieren
+        currentX += velocityX;
+        currentY += velocityY;
 
-        // Harter Anschlag und Vibration
+        // 4. Kollision mit Rändern prüfen und reagieren
         const checkCollision = (isColliding, side) => {
-            if (isColliding) {
+             if (isColliding) {
                 if (!collisionState[side]) {
-                    if (navigator.vibrate) navigator.vibrate(50);
+                    if (navigator.vibrate) navigator.vibrate(20);
                     collisionState[side] = true;
                 }
             } else {
                 collisionState[side] = false;
             }
-        };
+        }
 
-        checkCollision(futureLeft < 0, 'left');
-        checkCollision(futureRight > viewBox.width, 'right');
-        checkCollision(futureTop < 0, 'top');
-        checkCollision(futureBottom > viewBox.height, 'bottom');
+        // Linker / Rechter Rand
+        if (currentX < 0) {
+            currentX = 0;
+            velocityX *= -bounciness;
+            checkCollision(true, 'left');
+        } else if (currentX + squareProps.width > viewBox.width) {
+            currentX = viewBox.width - squareProps.width;
+            velocityX *= -bounciness;
+            checkCollision(true, 'right');
+        } else {
+             checkCollision(false, 'left');
+             checkCollision(false, 'right');
+        }
 
-        if (futureLeft < 0) currentTranslateX -= futureLeft;
-        if (futureRight > viewBox.width) currentTranslateX -= (futureRight - viewBox.width);
-        if (futureTop < 0) currentTranslateY -= futureTop;
-        if (futureBottom > viewBox.height) currentTranslateY -= (futureBottom - viewBox.height);
+        // Oberer / Unterer Rand
+        if (currentY < 0) {
+            currentY = 0;
+            velocityY *= -bounciness;
+            checkCollision(true, 'top');
+        } else if (currentY + squareProps.height > viewBox.height) {
+            currentY = viewBox.height - squareProps.height;
+            velocityY *= -bounciness;
+            checkCollision(true, 'bottom');
+        } else {
+            checkCollision(false, 'top');
+            checkCollision(false, 'bottom');
+        }
 
-        // Wende die finale Transformation an
-        gsap.set(square, {
-            x: initialX + currentTranslateX,
-            y: initialY + currentTranslateY,
-            scaleX: currentScaleX,
-            scaleY: currentScaleY,
-            transformOrigin: "center center",
-        });
+        // 5. Visuelle Position des Quadrats aktualisieren
+        gsap.set(square, { x: currentX, y: currentY });
 
         requestAnimationFrame(updateAnimation); // Die Schleife fortsetzen
       }
@@ -213,17 +205,16 @@
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
                         permissionOverlay.style.display = 'none';
-                        requestAnimationFrame(updateAnimation); // Starte die Animationsschleife
+                        requestAnimationFrame(updateAnimation); 
                     } else {
                         permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
                     }
                 })
                 .catch(console.error);
         } else {
-            // Für andere Geräte, die keine explizite Erlaubnis benötigen
             window.addEventListener('deviceorientation', handleOrientation);
             permissionOverlay.style.display = 'none';
-            requestAnimationFrame(updateAnimation); // Starte die Animationsschleife
+            requestAnimationFrame(updateAnimation);
         }
       }
 
