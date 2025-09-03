@@ -74,7 +74,7 @@
 </head>
 <body>
 
-  <div id="version-display">v2.1</div>
+  <div id="version-display">v2.2</div>
 
   <div id="permission-overlay">
     <h1>Typo-Dynamik</h1>
@@ -83,7 +83,6 @@
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" fill="white">
-    <!-- NEU: Wrapper-Gruppe für stabiles Zentrum -->
     <g id="word-container">
       <g id="motion-word">
           <polygon points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
@@ -123,10 +122,7 @@
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
       
-      // Initiale Transformation
-      // 1. Positioniere den Container im Zentrum
       gsap.set(container, { x: centerX, y: centerY });
-      // 2. Positioniere die Schrift in der Mitte des Containers und skaliere sie
       gsap.set(word, {
         x: -origCX,
         y: -origCY,
@@ -190,23 +186,25 @@
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
 
-        // Verschiebung des visuellen Zentrums berechnen
         const newCenterX = (newLeft + newRight) / 2;
         const newCenterY = (newTop + newBottom) / 2;
         
         const translateX = newCenterX - centerX;
         const translateY = newCenterY - centerY;
 
-        // Skalierung relativ zur neutralen Größe berechnen
         const scaleX = newWidth / neutralWidth;
         const scaleY = newHeight / neutralHeight;
+        
+        // NEU: Dynamische Dauer basierend auf dem Zustand
+        const isReturning = forceX === 0 && forceY === 0;
+        const duration = isReturning ? 1.5 : 0.5;
 
         gsap.to(word, { 
             x: -origCX + translateX,
             y: -origCY + translateY,
             scaleX: scaleX * (neutralWidth / originalBBox.width),
             scaleY: scaleY * (neutralHeight / originalBBox.height),
-            duration: 0.5,
+            duration: duration,
             ease: "power2.out"
         });
 
