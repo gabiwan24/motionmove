@@ -80,7 +80,7 @@
 </head>
 <body>
 
-  <div id="version-display">v2.9</div>
+  <div id="version-display">v3.0</div>
   <div id="angle-display"></div>
 
   <div id="permission-overlay">
@@ -144,7 +144,8 @@
         
         angleDisplay.innerHTML = `beta: ${beta.toFixed(1)}<br>gamma: ${gamma.toFixed(1)}`;
 
-        const tiltRangeX = 45.0; 
+        // Empfindlichkeit für Gamma (links/rechts) erhöht
+        const tiltRangeX = 30.0; 
         const deadzone = 2.0; 
 
         let newForceX = 0;
@@ -154,10 +155,10 @@
         forceX = newForceX;
         
         let newForceY = 0;
-        // NEU: Winkel angepasst
+        // Äußere Beta-Werte angepasst
         const neutralBeta = 65; 
-        const maxBeta = 90; 
-        const minBeta = 0;  
+        const maxBeta = 85; 
+        const minBeta = 35;  
 
         if (beta > neutralBeta) { 
             const range = maxBeta - neutralBeta; 
