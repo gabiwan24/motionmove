@@ -33,14 +33,12 @@
       overflow: hidden; 
     }
 
-    /* NEU: Angepasstes Overlay */
     #permission-overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      /* Füllt den Bildschirm mit der Hintergrundfarbe */
       background: #111;
       display: flex;
       justify-content: center;
@@ -49,14 +47,16 @@
       cursor: pointer;
     }
     
-    /* NEU: Styling für "Go"-Text */
     #go-text {
         font-size: 2.5rem;
         font-weight: 300;
         color: rgba(255, 255, 255, 0.7);
+        /* NEU: Verhindert das Markieren von Text */
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
     }
-
-    /* Veraltete Button-Styling entfernt */
 
     #version-display {
       position: absolute;
@@ -64,15 +64,14 @@
       left: 15px;
       color: rgba(255, 255, 255, 0.3);
       font-size: 14px;
-      z-index: 5; /* Unter dem Overlay, aber über dem SVG */
+      z-index: 5;
     }
   </style>
 </head>
 <body>
 
-  <div id="version-display">v2.4</div>
+  <div id="version-display">v2.5</div>
 
-  <!-- NEU: Vereinfachtes Overlay-Markup -->
   <div id="permission-overlay">
     <span id="go-text">Go</span>
   </div>
@@ -95,7 +94,6 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const permissionOverlay = document.getElementById('permission-overlay');
-      // Alter Button-Code entfernt
       
       const svg = document.getElementById('motion-svg');
       const container = document.getElementById('word-container');
@@ -211,10 +209,8 @@
                 .then(permissionState => {
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
-                        // Start-Button mit Fade-Out ausblenden
-                        gsap.to(permissionOverlay, { opacity: 0, duration: 0.5, onComplete: () => {
-                            permissionOverlay.style.display = 'none';
-                        }});
+                        // NEU: Hartes Entfernen statt Fade-Out
+                        permissionOverlay.style.display = 'none';
                         requestAnimationFrame(updateAnimation); 
                     } else {
                         permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
@@ -223,14 +219,12 @@
                 .catch(console.error);
         } else {
             window.addEventListener('deviceorientation', handleOrientation);
-            gsap.to(permissionOverlay, { opacity: 0, duration: 0.5, onComplete: () => {
-                permissionOverlay.style.display = 'none';
-            }});
+            // NEU: Hartes Entfernen statt Fade-Out
+            permissionOverlay.style.display = 'none';
             requestAnimationFrame(updateAnimation);
         }
       }
 
-      // NEU: Event Listener auf das gesamte Overlay legen
       permissionOverlay.addEventListener('click', startAnimation);
     });
   </script>
