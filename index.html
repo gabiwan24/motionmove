@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (verbreitern)</title>
+  <title>MOTION SVG mit Gyroskop (Gravitation)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -28,8 +28,8 @@
       width: min(95vw, calc(95vh * 16 / 9));
       aspect-ratio: 16 / 9;
       display: block;
-      /* Wichtig, damit die Skalierung nicht abgeschnitten wird, aber die Logik verhindert den Überlauf */
-      overflow: visible; 
+      /* Verhindert visuelles Überlaufen, falls die Logik je einen Frame hinterherhinkt */
+      overflow: hidden; 
     }
 
     #permission-overlay {
@@ -65,13 +65,14 @@
 <body>
 
   <div id="permission-overlay">
-    <h1>Gyro-Interaktion</h1>
+    <h1>Gyro-Gravitation</h1>
     <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
     <button id="permission-button">Starten</button>
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
-    <rect id="gyro-square" x="760" y="340" width="400" height="400" />
+    <!-- Das Quadrat wird nun über transform zentriert, um die Berechnungen zu vereinfachen -->
+    <rect id="gyro-square" x="0" y="0" width="400" height="400" />
   </svg>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -84,89 +85,87 @@
       const square = document.getElementById('gyro-square');
       const viewBox = { width: 1920, height: 1080 };
 
-      // Die originalen Attribute des Quadrats als Basis für Berechnungen speichern
       const squareProps = {
-        x: parseFloat(square.getAttribute('x')),
-        y: parseFloat(square.getAttribute('y')),
         width: parseFloat(square.getAttribute('width')),
         height: parseFloat(square.getAttribute('height')),
       };
 
+      // Das Quadrat initial exakt in die Mitte setzen
+      const initialX = (viewBox.width - squareProps.width) / 2;
+      const initialY = (viewBox.height - squareProps.height) / 2;
+      gsap.set(square, { x: initialX, y: initialY });
+
+
       function handleOrientation(event) {
-        const gamma = event.gamma || 0; // links/rechts (-90 bis 90)
-        const beta = event.beta || 0;   // vor/zurück (-180 bis 180)
+        const gamma = event.gamma || 0; 
+        const beta = event.beta || 0;   
 
         const maxTilt = 45.0; // Sensitivität
-        const deadzone = 2.0; // Kleine neutrale Zone um die Mitte
+        const deadzone = 2.0; 
 
-        // Normalisiere Neigungswerte, mit 45 Grad als "Nullpunkt" für Beta
-        let tiltX = 0;
+        // Kalibrierte Neigungswerte von -1 bis 1 berechnen
+        let forceX = 0;
         if (Math.abs(gamma) > deadzone) {
-            tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+            forceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
         }
         
-        let tiltY = 0;
+        let forceY = 0;
         const calibratedBeta = beta - 45;
         if (Math.abs(calibratedBeta) > deadzone) {
-            tiltY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+            forceY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
         }
+
+        // =================================================================
+        // Gravitations-Modell: Berechne Skalierung und Verschiebung
+        // =================================================================
+        const maxStretchFactor = 3.0; // Maximale Verzerrung
+
+        // Die Skalierung nimmt in beide Richtungen zu
+        let targetScaleX = 1 + Math.abs(forceX) * (maxStretchFactor - 1);
+        let targetScaleY = 1 + Math.abs(forceY) * (maxStretchFactor - 1);
+
+        // Die Verschiebung simuliert das "Ziehen" in eine Richtung
+        // Es verschiebt das Zentrum, um die gegenüberliegende Seite zu verankern
+        let targetTranslateX = forceX * ((targetScaleX - 1) * squareProps.width) / 2;
+        let targetTranslateY = forceY * ((targetScaleY - 1) * squareProps.height) / 2;
+
+        // =================================================================
+        // Robuste Rand-Kollision
+        // =================================================================
+        const futureWidth = squareProps.width * targetScaleX;
+        const futureHeight = squareProps.height * targetScaleY;
         
-        // =================================================================
-        // Logik für Skalierung und Ankerpunkt (`transformOrigin`)
-        // =================================================================
-        let targetScaleX = 1.0, targetScaleY = 1.0;
-        let originX = "center", originY = "center";
+        // Berechne die zukünftigen Koordinaten der Kanten
+        let futureLeft = initialX + targetTranslateX - (futureWidth / 2);
+        let futureRight = initialX + targetTranslateX + (futureWidth / 2);
+        let futureTop = initialY + targetTranslateY - (futureHeight / 2);
+        let futureBottom = initialY + targetTranslateY + (futureHeight / 2);
 
-        const maxScaleFactor = 2.0; // Wie stark sich das Quadrat maximal ausdehnt (z.B. 2.0 = doppelte Größe)
-
-        // Horizontale Skalierung
-        if (tiltX > 0) { // Nach rechts kippen
-            originX = "left";
-            targetScaleX = 1 + tiltX * (maxScaleFactor - 1);
-        } else if (tiltX < 0) { // Nach links kippen
-            originX = "right";
-            targetScaleX = 1 + Math.abs(tiltX) * (maxScaleFactor - 1);
+        // Korrigiere die Verschiebung, falls eine Kante den Rand überschreitet
+        if (futureLeft < 0) {
+            targetTranslateX -= futureLeft;
+        }
+        if (futureRight > viewBox.width) {
+            targetTranslateX -= (futureRight - viewBox.width);
+        }
+        if (futureTop < 0) {
+            targetTranslateY -= futureTop;
+        }
+        if (futureBottom > viewBox.height) {
+            targetTranslateY -= (futureBottom - viewBox.height);
         }
 
-        // Vertikale Skalierung (invertiert, wie gewünscht)
-        if (tiltY > 0) { // Nach "oben" kippen (Handy wird flacher)
-            originY = "bottom";
-            targetScaleY = 1 + tiltY * (maxScaleFactor - 1);
-        } else if (tiltY < 0) { // Nach "unten" kippen (Handy wird aufrechter)
-            originY = "top";
-            targetScaleY = 1 + Math.abs(tiltY) * (maxScaleFactor - 1);
-        }
-
-        // =================================================================
-        // Logik zur Begrenzung am Bildschirmrand
-        // =================================================================
-        if (originX === "left") {
-            const maxAllowedWidth = viewBox.width - squareProps.x;
-            const maxAllowedScaleX = maxAllowedWidth / squareProps.width;
-            if (targetScaleX > maxAllowedScaleX) targetScaleX = maxAllowedScaleX;
-        } else if (originX === "right") {
-            const maxAllowedWidth = squareProps.x + squareProps.width;
-            const maxAllowedScaleX = maxAllowedWidth / squareProps.width;
-            if (targetScaleX > maxAllowedScaleX) targetScaleX = maxAllowedScaleX;
-        }
-
-        if (originY === "bottom") {
-            const maxAllowedHeight = squareProps.y + squareProps.height;
-            const maxAllowedScaleY = maxAllowedHeight / squareProps.height;
-            if (targetScaleY > maxAllowedScaleY) targetScaleY = maxAllowedScaleY;
-        } else if (originY === "top") {
-            const maxAllowedHeight = viewBox.height - squareProps.y;
-            const maxAllowedScaleY = maxAllowedHeight / squareProps.height;
-            if (targetScaleY > maxAllowedScaleY) targetScaleY = maxAllowedScaleY;
-        }
-
-        // Finale Animation mit den berechneten, begrenzten Werten
+        // Animation mit den finalen, korrigierten Werten
         gsap.to(square, {
+            // Die Verschiebung wird zum initialen Zentrierungswert addiert
+            x: initialX + targetTranslateX,
+            y: initialY + targetTranslateY,
             scaleX: targetScaleX,
             scaleY: targetScaleY,
-            transformOrigin: `${originX} ${originY}`,
-            duration: 0.6,
-            ease: "power2.out",
+            // Der Ankerpunkt ist immer die Mitte, die Verschiebung erzeugt den "Zerren"-Effekt
+            transformOrigin: "center center",
+            duration: 0.8,
+            ease: "power3.out",
             overwrite: 'auto'
         });
       }
