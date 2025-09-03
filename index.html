@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (vereinfacht)</title>
+  <title>MOTION SVG mit Gyroskop (verbreitern)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -28,10 +28,10 @@
       width: min(95vw, calc(95vh * 16 / 9));
       aspect-ratio: 16 / 9;
       display: block;
-      overflow: hidden; /* Verhindert, dass das Quadrat den Rahmen verlässt */
+      /* Wichtig, damit die Skalierung nicht abgeschnitten wird, aber die Logik verhindert den Überlauf */
+      overflow: visible; 
     }
 
-    /* Styling für den Erlaubnis-Button und Statusmeldungen */
     #permission-overlay {
       position: absolute;
       top: 0;
@@ -71,7 +71,6 @@
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
-    <!-- VEREINFACHTER INHALT: Nur noch ein Quadrat -->
     <rect id="gyro-square" x="760" y="340" width="400" height="400" />
   </svg>
 
@@ -83,48 +82,95 @@
       const permissionButton = document.getElementById('permission-button');
       
       const square = document.getElementById('gyro-square');
-      
       const viewBox = { width: 1920, height: 1080 };
 
-      // Die originalen Attribute des Quadrats speichern
+      // Die originalen Attribute des Quadrats als Basis für Berechnungen speichern
       const squareProps = {
+        x: parseFloat(square.getAttribute('x')),
+        y: parseFloat(square.getAttribute('y')),
         width: parseFloat(square.getAttribute('width')),
         height: parseFloat(square.getAttribute('height')),
-        // Die Bewegung erfolgt über transform, also ist die Startposition (0,0)
       };
 
-      // Hauptfunktion, die die Animation steuert
       function handleOrientation(event) {
-        const gamma = event.gamma || 0; // links/rechts Neigung (-90 bis 90)
-        const beta = event.beta || 0;   // vor/zurück Neigung (-180 bis 180)
+        const gamma = event.gamma || 0; // links/rechts (-90 bis 90)
+        const beta = event.beta || 0;   // vor/zurück (-180 bis 180)
 
-        // Sensitivität der Neigung einstellen
-        const maxTilt = 40.0; 
+        const maxTilt = 45.0; // Sensitivität
+        const deadzone = 2.0; // Kleine neutrale Zone um die Mitte
+
+        // Normalisiere Neigungswerte, mit 45 Grad als "Nullpunkt" für Beta
+        let tiltX = 0;
+        if (Math.abs(gamma) > deadzone) {
+            tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+        }
         
-        // Neigungswerte auf einen Bereich von -1 bis 1 normalisieren
-        const tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
-        // Kalibrierung um 45 Grad, damit eine bequeme Haltung des Handys der Nullposition entspricht
-        const tiltY = gsap.utils.clamp(-1, 1, (beta - 45) / maxTilt);
-
-        // Maximaler Verschiebeweg des Quadrats vom Zentrum zum Rand
-        const maxMoveX = (viewBox.width / 2) - (squareProps.width / 2);
-        const maxMoveY = (viewBox.height / 2) - (squareProps.height / 2);
-
-        // Zielposition berechnen
-        const targetX = tiltX * maxMoveX;
-        const targetY = tiltY * maxMoveY;
+        let tiltY = 0;
+        const calibratedBeta = beta - 45;
+        if (Math.abs(calibratedBeta) > deadzone) {
+            tiltY = gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+        }
         
-        // Das Quadrat zur Zielposition animieren (GSAP animiert die 'transform' Eigenschaft)
+        // =================================================================
+        // Logik für Skalierung und Ankerpunkt (`transformOrigin`)
+        // =================================================================
+        let targetScaleX = 1.0, targetScaleY = 1.0;
+        let originX = "center", originY = "center";
+
+        const maxScaleFactor = 2.0; // Wie stark sich das Quadrat maximal ausdehnt (z.B. 2.0 = doppelte Größe)
+
+        // Horizontale Skalierung
+        if (tiltX > 0) { // Nach rechts kippen
+            originX = "left";
+            targetScaleX = 1 + tiltX * (maxScaleFactor - 1);
+        } else if (tiltX < 0) { // Nach links kippen
+            originX = "right";
+            targetScaleX = 1 + Math.abs(tiltX) * (maxScaleFactor - 1);
+        }
+
+        // Vertikale Skalierung (invertiert, wie gewünscht)
+        if (tiltY > 0) { // Nach "oben" kippen (Handy wird flacher)
+            originY = "bottom";
+            targetScaleY = 1 + tiltY * (maxScaleFactor - 1);
+        } else if (tiltY < 0) { // Nach "unten" kippen (Handy wird aufrechter)
+            originY = "top";
+            targetScaleY = 1 + Math.abs(tiltY) * (maxScaleFactor - 1);
+        }
+
+        // =================================================================
+        // Logik zur Begrenzung am Bildschirmrand
+        // =================================================================
+        if (originX === "left") {
+            const maxAllowedWidth = viewBox.width - squareProps.x;
+            const maxAllowedScaleX = maxAllowedWidth / squareProps.width;
+            if (targetScaleX > maxAllowedScaleX) targetScaleX = maxAllowedScaleX;
+        } else if (originX === "right") {
+            const maxAllowedWidth = squareProps.x + squareProps.width;
+            const maxAllowedScaleX = maxAllowedWidth / squareProps.width;
+            if (targetScaleX > maxAllowedScaleX) targetScaleX = maxAllowedScaleX;
+        }
+
+        if (originY === "bottom") {
+            const maxAllowedHeight = squareProps.y + squareProps.height;
+            const maxAllowedScaleY = maxAllowedHeight / squareProps.height;
+            if (targetScaleY > maxAllowedScaleY) targetScaleY = maxAllowedScaleY;
+        } else if (originY === "top") {
+            const maxAllowedHeight = viewBox.height - squareProps.y;
+            const maxAllowedScaleY = maxAllowedHeight / squareProps.height;
+            if (targetScaleY > maxAllowedScaleY) targetScaleY = maxAllowedScaleY;
+        }
+
+        // Finale Animation mit den berechneten, begrenzten Werten
         gsap.to(square, {
-            x: targetX,
-            y: targetY,
-            duration: 0.5,
+            scaleX: targetScaleX,
+            scaleY: targetScaleY,
+            transformOrigin: `${originX} ${originY}`,
+            duration: 0.6,
             ease: "power2.out",
             overwrite: 'auto'
         });
       }
       
-      // Startet den Prozess nach Klick auf den Button
       function startAnimation() {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
