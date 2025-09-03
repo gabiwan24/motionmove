@@ -66,7 +66,6 @@
       z-index: 5;
     }
     
-    /* NEU: Styling für die Winkelanzeige */
     #angle-display {
       position: absolute;
       top: 15px;
@@ -81,8 +80,7 @@
 </head>
 <body>
 
-  <div id="version-display">v2.8</div>
-  <!-- NEU: Container für die Winkelanzeige -->
+  <div id="version-display">v2.9</div>
   <div id="angle-display"></div>
 
   <div id="permission-overlay">
@@ -107,7 +105,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const permissionOverlay = document.getElementById('permission-overlay');
-      const angleDisplay = document.getElementById('angle-display'); // NEU
+      const angleDisplay = document.getElementById('angle-display');
       
       const svg = document.getElementById('motion-svg');
       const container = document.getElementById('word-container');
@@ -144,7 +142,6 @@
         const gamma = event.gamma || 0; 
         const beta = event.beta || 0;   
         
-        // NEU: Winkelanzeige aktualisieren
         angleDisplay.innerHTML = `beta: ${beta.toFixed(1)}<br>gamma: ${gamma.toFixed(1)}`;
 
         const tiltRangeX = 45.0; 
@@ -157,8 +154,9 @@
         forceX = newForceX;
         
         let newForceY = 0;
-        const neutralBeta = 50; 
-        const maxBeta = 80; 
+        // NEU: Winkel angepasst
+        const neutralBeta = 65; 
+        const maxBeta = 90; 
         const minBeta = 0;  
 
         if (beta > neutralBeta) { 
