@@ -65,11 +65,25 @@
       font-size: 14px;
       z-index: 5;
     }
+    
+    /* NEU: Styling für die Winkelanzeige */
+    #angle-display {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+      font-family: monospace;
+      z-index: 5;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
 
-  <div id="version-display">v2.7</div>
+  <div id="version-display">v2.8</div>
+  <!-- NEU: Container für die Winkelanzeige -->
+  <div id="angle-display"></div>
 
   <div id="permission-overlay">
     <span id="go-text">Go</span>
@@ -93,6 +107,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const permissionOverlay = document.getElementById('permission-overlay');
+      const angleDisplay = document.getElementById('angle-display'); // NEU
       
       const svg = document.getElementById('motion-svg');
       const container = document.getElementById('word-container');
@@ -128,6 +143,10 @@
       function handleOrientation(event) {
         const gamma = event.gamma || 0; 
         const beta = event.beta || 0;   
+        
+        // NEU: Winkelanzeige aktualisieren
+        angleDisplay.innerHTML = `beta: ${beta.toFixed(1)}<br>gamma: ${gamma.toFixed(1)}`;
+
         const tiltRangeX = 45.0; 
         const deadzone = 2.0; 
 
@@ -138,8 +157,7 @@
         forceX = newForceX;
         
         let newForceY = 0;
-        // NEU: Winkel angepasst
-        const neutralBeta = 47; 
+        const neutralBeta = 50; 
         const maxBeta = 80; 
         const minBeta = 0;  
 
