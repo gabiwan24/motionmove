@@ -3,6 +3,217 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>MOTION SVG mit Gyroskop (Kanten-Physik)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden; /* Verhindert Scrollen auf Mobilgeräten */
+    }
+    body {
+      margin: 0;
+      display: grid;
+      place-items: center;
+      background: #111;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    
+    svg {
+      width: min(95vw, calc(95vh * 16 / 9));
+      aspect-ratio: 16 / 9;
+      display: block;
+      overflow: hidden; 
+    }
+
+    #permission-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      text-align: center;
+      color: white;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    #permission-button {
+      font-size: 1.2rem;
+      padding: 15px 30px;
+      margin-top: 20px;
+      border-radius: 12px;
+      border: 1px solid #fff;
+      background-color: #333;
+      color: #fff;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+
+    #version-display {
+      position: absolute;
+      top: 15px;
+      left: 15px;
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 14px;
+      z-index: 5;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="version-display">v1.7</div>
+
+  <div id="permission-overlay">
+    <h1>Kanten-Physik</h1>
+    <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
+    <button id="permission-button">Starten</button>
+  </div>
+
+  <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
+    <rect id="gyro-square" x="0" y="0" width="150" height="150" />
+  </svg>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const permissionOverlay = document.getElementById('permission-overlay');
+      const permissionButton = document.getElementById('permission-button');
+      
+      const square = document.getElementById('gyro-square');
+      const viewBox = { width: 1920, height: 1080 };
+
+      // Statische Eigenschaften des Quadrats in seiner Ruheposition
+      const initialWidth = 150;
+      const initialHeight = 150;
+      const centerX = viewBox.width / 2;
+      const centerY = viewBox.height / 2;
+      const initialLeft = centerX - initialWidth / 2;
+      const initialRight = centerX + initialWidth / 2;
+      const initialTop = centerY - initialHeight / 2;
+      const initialBottom = centerY + initialHeight / 2;
+
+      gsap.set(square, { x: initialLeft, y: initialTop, width: initialWidth, height: initialHeight });
+
+      // Physik-Engine für eine unsichtbare "Kugel"
+      let ballX = centerX, ballY = centerY;
+      let velocityX = 0, velocityY = 0;
+      let forceX = 0, forceY = 0;
+
+      const gravity = 0.8; // Erhöht für bessere Reaktion
+      const friction = 0.95; // Etwas weniger Reibung
+      const bounciness = 0.6; 
+      const collisionState = { left: false, right: false, top: false, bottom: false };
+      
+      function handleOrientation(event) {
+        const gamma = event.gamma || 0; 
+        const beta = event.beta || 0;   
+        const maxTilt = 45.0; 
+        const deadzone = 1.0; 
+
+        let newForceX = 0;
+        if (Math.abs(gamma) > deadzone) {
+            newForceX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+        }
+        forceX = newForceX;
+        
+        let newForceY = 0;
+        const calibratedBeta = beta - 45;
+        if (Math.abs(calibratedBeta) > deadzone) {
+            newForceY = -gsap.utils.clamp(-1, 1, calibratedBeta / maxTilt);
+        }
+        forceY = newForceY;
+      }
+
+      function updateAnimation() {
+        // 1. Physik der unsichtbaren Kugel berechnen
+        velocityX += forceX * gravity;
+        velocityY += forceY * gravity;
+        velocityX *= friction;
+        velocityY *= friction;
+        ballX += velocityX;
+        ballY += velocityY;
+
+        // 2. Kollision der Kugel mit den Rändern
+        const checkCollision = (isColliding, side) => {
+             if (isColliding) {
+                if (!collisionState[side]) {
+                    if (navigator.vibrate) navigator.vibrate(20);
+                    collisionState[side] = true;
+                }
+            } else {
+                collisionState[side] = false;
+            }
+        }
+
+        if (ballX < 0) { ballX = 0; velocityX *= -bounciness; checkCollision(true, 'left'); }
+        else if (ballX > viewBox.width) { ballX = viewBox.width; velocityX *= -bounciness; checkCollision(true, 'right'); }
+        else { checkCollision(false, 'left'); checkCollision(false, 'right'); }
+
+        if (ballY < 0) { ballY = 0; velocityY *= -bounciness; checkCollision(true, 'top'); }
+        else if (ballY > viewBox.height) { ballY = viewBox.height; velocityY *= -bounciness; checkCollision(true, 'bottom'); }
+        else { checkCollision(false, 'top'); checkCollision(false, 'bottom'); }
+
+        // 3. Position der Kugel auf die Kanten des sichtbaren Quadrats übertragen
+        let newLeft = initialLeft, newRight = initialRight, newTop = initialTop, newBottom = initialBottom;
+
+        if (ballX > centerX) newRight = ballX;
+        else if (ballX < centerX) newLeft = ballX;
+
+        if (ballY > centerY) newBottom = ballY;
+        else if (ballY < centerY) newTop = ballY;
+        
+        const newWidth = newRight - newLeft;
+        const newHeight = newBottom - newTop;
+
+        // 4. Sichtbares Quadrat aktualisieren
+        gsap.set(square, { x: newLeft, y: newTop, width: newWidth, height: newHeight });
+
+        requestAnimationFrame(updateAnimation);
+      }
+      
+      function startAnimation() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        window.addEventListener('deviceorientation', handleOrientation);
+                        permissionOverlay.style.display = 'none';
+                        requestAnimationFrame(updateAnimation); 
+                    } else {
+                        permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
+                    }
+                })
+                .catch(console.error);
+        } else {
+            window.addEventListener('deviceorientation', handleOrientation);
+            permissionOverlay.style.display = 'none';
+            requestAnimationFrame(updateAnimation);
+        }
+      }
+
+      permissionButton.addEventListener('click', startAnimation);
+    });
+  </script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>MOTION SVG mit Gyroskop (Kugel-Simulation)</title>
   <style>
     :root {
