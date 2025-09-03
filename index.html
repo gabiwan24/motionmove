@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop</title>
+  <title>MOTION SVG mit Gyroskop (vereinfacht)</title>
   <style>
     :root {
       color-scheme: dark;
@@ -28,7 +28,7 @@
       width: min(95vw, calc(95vh * 16 / 9));
       aspect-ratio: 16 / 9;
       display: block;
-      overflow: visible; 
+      overflow: hidden; /* Verhindert, dass das Quadrat den Rahmen verlässt */
     }
 
     /* Styling für den Erlaubnis-Button und Statusmeldungen */
@@ -60,50 +60,19 @@
       cursor: pointer;
       transition: background-color 0.2s, transform 0.2s;
     }
-    #permission-button:hover {
-        background-color: #555;
-    }
-     #permission-button:active {
-        transform: scale(0.95);
-    }
   </style>
 </head>
 <body>
 
   <div id="permission-overlay">
-    <h1>Interaktive Typografie</h1>
-    <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben und die Animation zu starten.</p>
+    <h1>Gyro-Interaktion</h1>
+    <p>Bitte tippen, um den Zugriff auf die Bewegungssensoren zu erlauben.</p>
     <button id="permission-button">Starten</button>
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" fill="white">
-    <g id="Layer_1">
-      <!-- SVG-Buchstabengruppen bleiben unverändert -->
-      <g class="letter-group">
-        <rect x="17.31" y="269.69" width="340" height="510" fill="transparent" />
-        <polygon class="visual-shape" points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
-      </g>
-      <g class="letter-group">
-        <rect x="373.25" y="269.69" width="340.9" height="510" fill="transparent" />
-        <polygon class="visual-shape" points="600.18 269.69 600.18 269.69 487.23 269.69 486.2 269.69 373.25 269.69 373.25 779.69 486.2 779.69 487.23 779.69 600.18 779.69 600.18 779.69 714.15 779.69 714.15 269.69 600.18 269.69"/>
-      </g>
-      <g class="letter-group">
-        <rect x="727.28" y="269.69" width="340.13" height="510" fill="transparent" />
-        <polygon class="visual-shape" points="1067.41 269.69 954.46 269.69 953.43 269.69 841.26 269.69 840.48 269.69 727.28 269.69 727.28 658.91 840.48 658.91 840.48 779.69 954.46 779.69 954.46 658.91 1067.41 658.91 1067.41 269.69"/>
-      </g>
-      <g class="letter-group">
-        <rect x="1080.02" y="269.69" width="113.98" height="510" fill="transparent" />
-        <rect class="visual-shape" x="1080.02" y="269.69" width="113.98" height="510"/>
-      </g>
-      <g class="letter-group">
-        <rect x="1207.95" y="269.69" width="340.9" height="510" fill="transparent" />
-        <polygon class="visual-shape" points="1434.87 269.69 1434.87 269.69 1321.92 269.69 1320.9 269.69 1207.95 269.69 1207.95 779.69 1320.9 779.69 1321.92 779.69 1434.87 779.69 1434.87 779.69 1548.85 779.69 1548.85 269.69 1434.87 269.69"/>
-      </g>
-      <g class="letter-group">
-        <rect x="1562.69" y="269.69" width="340" height="510" fill="transparent" />
-        <polygon class="visual-shape" points="1788.72 269.69 1788.72 391.22 1676.67 270.22 1676.67 269.69 1676.17 269.69 1562.69 269.69 1562.69 779.69 1615.54 779.69 1676.67 779.69 1788.72 779.69 1870.92 779.69 1902.69 779.69 1902.69 269.69 1788.72 269.69"/>
-      </g>
-    </g>
+    <!-- VEREINFACHTER INHALT: Nur noch ein Quadrat -->
+    <rect id="gyro-square" x="760" y="340" width="400" height="400" />
   </svg>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -113,126 +82,49 @@
       const permissionOverlay = document.getElementById('permission-overlay');
       const permissionButton = document.getElementById('permission-button');
       
-      const layer = document.getElementById('Layer_1');
-      const letterGroups = gsap.utils.toArray(".letter-group");
+      const square = document.getElementById('gyro-square');
       
       const viewBox = { width: 1920, height: 1080 };
 
-      const layerBox = layer.getBBox();
-      const wordCenter = {
-        x: layerBox.x + layerBox.width / 2,
-        y: layerBox.y + layerBox.height / 2
+      // Die originalen Attribute des Quadrats speichern
+      const squareProps = {
+        width: parseFloat(square.getAttribute('width')),
+        height: parseFloat(square.getAttribute('height')),
+        // Die Bewegung erfolgt über transform, also ist die Startposition (0,0)
       };
 
-      letterGroups.forEach(group => {
-        const groupBox = group.getBBox();
-        group.originalWidth = groupBox.width;
-        group.originalHeight = groupBox.height;
-        group.centerX = groupBox.x + groupBox.width / 2;
-        group.centerY = groupBox.y + groupBox.height / 2;
-        group.visualShape = group.querySelector('.visual-shape');
-      });
-
-      const mapRange = (value, in_min, in_max, out_min, out_max) => {
-        return (value - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-      }
-      
+      // Hauptfunktion, die die Animation steuert
       function handleOrientation(event) {
-        const gamma = event.gamma || 0;
-        const beta = event.beta || 0;
+        const gamma = event.gamma || 0; // links/rechts Neigung (-90 bis 90)
+        const beta = event.beta || 0;   // vor/zurück Neigung (-180 bis 180)
 
-        const maxTilt = 40.0;
+        // Sensitivität der Neigung einstellen
+        const maxTilt = 40.0; 
+        
+        // Neigungswerte auf einen Bereich von -1 bis 1 normalisieren
         const tiltX = gsap.utils.clamp(-1, 1, gamma / maxTilt);
+        // Kalibrierung um 45 Grad, damit eine bequeme Haltung des Handys der Nullposition entspricht
         const tiltY = gsap.utils.clamp(-1, 1, (beta - 45) / maxTilt);
 
-        const maxSlide = 150;
-        const maxStretch = 300;
-        const maxScale = 0.5;
+        // Maximaler Verschiebeweg des Quadrats vom Zentrum zum Rand
+        const maxMoveX = (viewBox.width / 2) - (squareProps.width / 2);
+        const maxMoveY = (viewBox.height / 2) - (squareProps.height / 2);
 
-        let futureLeft = Infinity, futureRight = -Infinity, futureTop = Infinity, futureBottom = -Infinity;
-
-        letterGroups.forEach(group => {
-            const normalizedPosX = (group.centerX - wordCenter.x) / (layerBox.width / 2);
-            const normalizedPosY = (group.centerY - wordCenter.y) / (layerBox.height / 2);
-
-            const slideX = tiltX * maxSlide;
-            const slideY = tiltY * maxSlide;
-
-            const stretchX = tiltX * normalizedPosX * maxStretch;
-            const stretchY = tiltY * normalizedPosY * maxStretch;
-            
-            group.targetX = slideX + stretchX;
-            group.targetY = slideY + stretchY;
-            
-            group.targetScaleX = 1 + (tiltX * normalizedPosX * maxScale);
-            group.targetScaleY = 1 + (tiltY * normalizedPosY * maxScale);
-
-            const futureCenterX = group.centerX + group.targetX;
-            const futureCenterY = group.centerY + group.targetY;
-            const futureWidth = group.originalWidth * group.targetScaleX;
-            const futureHeight = group.originalHeight * group.targetScaleY;
-
-            futureLeft = Math.min(futureLeft, futureCenterX - futureWidth / 2);
-            futureRight = Math.max(futureRight, futureCenterX + futureWidth / 2);
-            futureTop = Math.min(futureTop, futureCenterY - futureHeight / 2);
-            futureBottom = Math.max(futureBottom, futureCenterY + futureHeight / 2);
-        });
+        // Zielposition berechnen
+        const targetX = tiltX * maxMoveX;
+        const targetY = tiltY * maxMoveY;
         
-        let correctionX = 0;
-        if (futureLeft < 0) correctionX = -futureLeft;
-        if (futureRight > viewBox.width) correctionX = viewBox.width - futureRight;
-        
-        let correctionY = 0;
-        if (futureTop < 0) correctionY = -futureTop;
-        if (futureBottom > viewBox.height) correctionY = viewBox.height - futureBottom;
-
-        // =================================================================
-        // NEUE LOGIK für Stauchen (Squash) und Dehnen (Stretch)
-        // =================================================================
-        let squashRatioX = 1.0;
-        let finalTOriginX = "center";
-        let finalTOriginY = "center";
-        
-        const maxOverflowForSquash = 250; // Grenzwert für maximales Stauchen
-
-        // Horizontale Logik: Stauchen und Ankerpunkt setzen
-        if (correctionX > 0) { // An den linken Rand gestoßen
-            squashRatioX = mapRange(correctionX, 0, maxOverflowForSquash, 1, 0.4); // Staucht bis auf 40%
-            finalTOriginX = "right"; // Stauchen von rechts nach links
-        } else if (correctionX < 0) { // An den rechten Rand gestoßen
-            squashRatioX = mapRange(Math.abs(correctionX), 0, maxOverflowForSquash, 1, 0.4);
-            finalTOriginX = "left"; // Stauchen von links nach rechts
-        }
-
-        // Vertikale Logik: Ankerpunkt für Dehnen setzen
-        const tiltDeadzone = 2; // Kleine neutrale Zone
-        if (tiltY > tiltDeadzone) { // Nach vorne kippen
-            finalTOriginY = "bottom"; // Dehnen von der Unterkante nach oben
-        } else if (tiltY < -tiltDeadzone) { // Nach hinten kippen
-            finalTOriginY = "top"; // Dehnen von der Oberkante nach unten
-        }
-
-        // Animation für jeden Buchstaben ausführen
-        letterGroups.forEach(group => {
-            gsap.to(group, {
-                x: group.targetX + correctionX,
-                y: group.targetY + correctionY,
-                duration: 0.8,
-                ease: "power3.out",
-                overwrite: 'auto'
-            });
-
-            gsap.to(group.visualShape, {
-                scaleX: group.targetScaleX * squashRatioX, // Stauchung anwenden
-                scaleY: group.targetScaleY,
-                transformOrigin: `${finalTOriginX} ${finalTOriginY}`, // Dynamischen Ankerpunkt setzen
-                duration: 0.8,
-                ease: "power3.out",
-                overwrite: 'auto'
-            });
+        // Das Quadrat zur Zielposition animieren (GSAP animiert die 'transform' Eigenschaft)
+        gsap.to(square, {
+            x: targetX,
+            y: targetY,
+            duration: 0.5,
+            ease: "power2.out",
+            overwrite: 'auto'
         });
       }
       
+      // Startet den Prozess nach Klick auf den Button
       function startAnimation() {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
@@ -241,7 +133,7 @@
                         window.addEventListener('deviceorientation', handleOrientation);
                         permissionOverlay.style.display = 'none';
                     } else {
-                        permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert. Die Animation kann nicht gestartet werden.</p>";
+                        permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
                     }
                 })
                 .catch(console.error);
@@ -256,5 +148,3 @@
   </script>
 </body>
 </html>
-
-
