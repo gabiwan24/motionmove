@@ -80,7 +80,7 @@
 </head>
 <body>
 
-  <div id="version-display">v3.2</div>
+  <div id="version-display">v3.3</div>
   <div id="angle-display"></div>
 
   <div id="permission-overlay">
@@ -89,14 +89,25 @@
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" fill="white">
     <g id="word-container">
-      <g id="motion-word">
-          <polygon points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
-          <polygon points="600.18 269.69 600.18 269.69 487.23 269.69 486.2 269.69 373.25 269.69 373.25 779.69 486.2 779.69 487.23 779.69 600.18 779.69 600.18 779.69 714.15 779.69 714.15 269.69 600.18 269.69"/>
-          <polygon points="1067.41 269.69 954.46 269.69 953.43 269.69 841.26 269.69 840.48 269.69 727.28 269.69 727.28 658.91 840.48 658.91 840.48 779.69 954.46 779.69 954.46 658.91 1067.41 658.91 1067.41 269.69"/>
-          <rect x="1080.02" y="269.69" width="113.98" height="510"/>
-          <polygon points="1434.87 269.69 1434.87 269.69 1321.92 269.69 1320.9 269.69 1207.95 269.69 1207.95 779.69 1320.9 779.69 1321.92 779.69 1434.87 779.69 1434.87 779.69 1548.85 779.69 1548.85 269.69 1434.87 269.69"/>
-          <polygon points="1788.72 269.69 1788.72 391.22 1676.67 270.22 1676.67 269.69 1676.17 269.69 1562.69 269.69 1562.69 779.69 1615.54 779.69 1676.67 779.69 1788.72 779.69 1870.92 779.69 1902.69 779.69 1902.69 269.69 1788.72 269.69"/>
-      </g>
+        <!-- Jeder Buchstabe ist wieder eine eigene Gruppe -->
+        <g class="letter-group">
+            <polygon points="300.32 269.69 243.33 269.69 131.29 269.69 58.77 269.69 17.31 269.69 17.31 779.69 131.29 779.69 131.29 661.05 187.31 779.69 243.33 661.05 243.33 779.69 357.31 779.69 357.31 269.69 300.32 269.69"/>
+        </g>
+        <g class="letter-group">
+            <polygon points="600.18 269.69 600.18 269.69 487.23 269.69 486.2 269.69 373.25 269.69 373.25 779.69 486.2 779.69 487.23 779.69 600.18 779.69 600.18 779.69 714.15 779.69 714.15 269.69 600.18 269.69"/>
+        </g>
+        <g class="letter-group">
+            <polygon points="1067.41 269.69 954.46 269.69 953.43 269.69 841.26 269.69 840.48 269.69 727.28 269.69 727.28 658.91 840.48 658.91 840.48 779.69 954.46 779.69 954.46 658.91 1067.41 658.91 1067.41 269.69"/>
+        </g>
+        <g class="letter-group">
+            <rect x="1080.02" y="269.69" width="113.98" height="510"/>
+        </g>
+        <g class="letter-group">
+            <polygon points="1434.87 269.69 1434.87 269.69 1321.92 269.69 1320.9 269.69 1207.95 269.69 1207.95 779.69 1320.9 779.69 1321.92 779.69 1434.87 779.69 1434.87 779.69 1548.85 779.69 1548.85 269.69 1434.87 269.69"/>
+        </g>
+        <g class="letter-group">
+            <polygon points="1788.72 269.69 1788.72 391.22 1676.67 270.22 1676.67 269.69 1676.17 269.69 1562.69 269.69 1562.69 779.69 1615.54 779.69 1676.67 779.69 1788.72 779.69 1870.92 779.69 1902.69 779.69 1902.69 269.69 1788.72 269.69"/>
+        </g>
     </g>
   </svg>
 
@@ -109,7 +120,7 @@
       
       const svg = document.getElementById('motion-svg');
       const container = document.getElementById('word-container');
-      const word = document.getElementById('motion-word');
+      const letters = gsap.utils.toArray(".letter-group");
       
       const screenWidth = window.innerWidth;
       const screenHeight = window.innerHeight;
@@ -117,27 +128,28 @@
       svg.setAttribute('viewBox', `0 0 ${screenWidth} ${screenHeight}`);
       const viewBox = { width: screenWidth, height: screenHeight };
 
-      const originalBBox = word.getBBox();
-      const origCX = originalBBox.x + originalBBox.width / 2;
-      const origCY = originalBBox.y + originalBBox.height / 2;
+      const wordOriginalBBox = container.getBBox();
 
       const neutralWidth = screenWidth * 0.5;
-      const neutralHeight = neutralWidth / (originalBBox.width / originalBBox.height);
+      const neutralHeight = neutralWidth / (wordOriginalBBox.width / wordOriginalBBox.height);
       
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
       
-      gsap.set(container, { x: centerX, y: centerY });
-      gsap.set(word, {
-        x: -origCX,
-        y: -origCY,
-        scaleX: neutralWidth / originalBBox.width,
-        scaleY: neutralHeight / originalBBox.height,
-        transformOrigin: "center center"
+      // Initiale Positionierung jedes einzelnen Buchstabens
+      letters.forEach(letter => {
+        const letterBBox = letter.getBBox();
+        letter.originalBBox = letterBBox;
+        gsap.set(letter, {
+            x: centerX - (letterBBox.x + letterBBox.width / 2),
+            y: centerY - (letterBBox.y + letterBBox.height / 2),
+            scaleX: neutralWidth / wordOriginalBBox.width,
+            scaleY: neutralHeight / wordOriginalBBox.height,
+            transformOrigin: "center center"
+        });
       });
 
       let forceX = 0, forceY = 0;
-      // NEU: Variablen für die Kalibrierung
       let neutralBetaCalibrated = null;
       let neutralGammaCalibrated = null;
       let animationLoopStarted = false;
@@ -146,19 +158,16 @@
         const gamma = event.gamma || 0; 
         const beta = event.beta || 0;   
         
-        // NEU: Kalibrierung beim ersten Aufruf
         if (neutralBetaCalibrated === null) {
             neutralBetaCalibrated = beta;
             neutralGammaCalibrated = gamma;
         }
 
-        // Anzeige mit kalibrierten Werten
         angleDisplay.innerHTML = `beta: ${beta.toFixed(1)} (N:${neutralBetaCalibrated.toFixed(1)})<br>gamma: ${gamma.toFixed(1)} (N:${neutralGammaCalibrated.toFixed(1)})`;
 
-        const tiltRange = 30.0; // +/- 30 Grad Bewegung von der neutralen Position
+        const tiltRange = 30.0;
         const deadzone = 2.0; 
 
-        // Berechnung der Kraft relativ zum kalibrierten Nullpunkt
         const calibratedGamma = gamma - neutralGammaCalibrated;
         if (Math.abs(calibratedGamma) > deadzone) {
             forceX = gsap.utils.clamp(-1, 1, calibratedGamma / tiltRange);
@@ -180,12 +189,7 @@
         const neutralTop = centerY - neutralHeight / 2;
         const neutralBottom = centerY + neutralHeight / 2;
 
-        let newLeft = neutralLeft;
-        let newRight = neutralRight;
-        let newTop = neutralTop;
-        let newBottom = neutralBottom;
-
-        // Die Logik hier bleibt gleich, reagiert aber auf die neuen, relativen force-Werte
+        let newLeft = neutralLeft, newRight = neutralRight, newTop = neutralTop, newBottom = neutralBottom;
         if (forceX > 0) newRight = neutralRight + forceX * (viewBox.width - neutralRight);
         else if (forceX < 0) newLeft = neutralLeft + forceX * neutralLeft;
         
@@ -194,26 +198,29 @@
         
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
-
-        const newCenterX = (newLeft + newRight) / 2;
-        const newCenterY = (newTop + newBottom) / 2;
-        
-        const translateX = newCenterX - centerX;
-        const translateY = newCenterY - centerY;
-
-        const scaleX = newWidth / neutralWidth;
-        const scaleY = newHeight / neutralHeight;
         
         const isReturning = forceX === 0 && forceY === 0;
         const duration = isReturning ? 2.5 : 0.5;
 
-        gsap.to(word, { 
-            x: -origCX + translateX,
-            y: -origCY + translateY,
-            scaleX: scaleX * (neutralWidth / originalBBox.width),
-            scaleY: scaleY * (neutralHeight / originalBBox.height),
+        // Animiere jeden Buchstaben einzeln mit Versatz
+        gsap.to(letters, { 
+            x: (i, target) => {
+                const letterOrigBBox = target.originalBBox;
+                const letterRelX = (letterOrigBBox.x + letterOrigBBox.width / 2 - wordOriginalBBox.x) / wordOriginalBBox.width;
+                const targetX = newLeft + letterRelX * newWidth;
+                return targetX - (letterOrigBBox.x + letterOrigBBox.width / 2);
+            },
+            y: (i, target) => {
+                const letterOrigBBox = target.originalBBox;
+                const letterRelY = (letterOrigBBox.y + letterOrigBBox.height / 2 - wordOriginalBBox.y) / wordOriginalBBox.height;
+                const targetY = newTop + letterRelY * newHeight;
+                return targetY - (letterOrigBBox.y + letterOrigBBox.height / 2);
+            },
+            scaleX: newWidth / wordOriginalBBox.width,
+            scaleY: newHeight / wordOriginalBBox.height,
             duration: duration,
-            ease: "power2.out"
+            ease: "power2.out",
+            stagger: 0.03
         });
 
         requestAnimationFrame(updateAnimation);
@@ -226,7 +233,6 @@
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
                         permissionOverlay.style.display = 'none';
-                        // Starte die Animationsschleife erst nach der ersten Kalibrierung
                         if (!animationLoopStarted) {
                             requestAnimationFrame(updateAnimation);
                             animationLoopStarted = true;
