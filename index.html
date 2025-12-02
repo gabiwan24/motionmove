@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MotionMove</title>
+  <title>MOTIONMOVE</title>
   <style>
     :root {
       color-scheme: dark;
@@ -82,7 +82,7 @@
 </head>
 <body>
 
-  <div id="version-display">v4.1 Hidden Mouse</div>
+  <div id="version-display">v4.2 Half Height</div>
   <div id="angle-display">Waiting for input...</div>
 
   <div id="permission-overlay">
@@ -141,7 +141,8 @@
       const wordOriginalBBox = container.getBBox();
 
       const neutralWidth = screenWidth * 0.5;
-      const neutralHeight = neutralWidth / (wordOriginalBBox.width / wordOriginalBBox.height);
+      // HIER GEÄNDERT: Höhe wird durch Multiplikation mit 0.5 halbiert
+      const neutralHeight = (neutralWidth / (wordOriginalBBox.width / wordOriginalBBox.height)) * 0.5;
       
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
