@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>MOTION SVG mit Gyroskop (Finale Typo)</title>
+  <title>MotionMove</title>
   <style>
     :root {
       color-scheme: dark;
@@ -22,6 +22,7 @@
       place-items: center;
       background: #111;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      cursor: none; /* HIER: Mauszeiger global verstecken */
     }
     
     svg {
@@ -44,7 +45,7 @@
       justify-content: center;
       align-items: center;
       z-index: 10;
-      cursor: pointer;
+      cursor: pointer; /* Zeiger sichtbar lassen, solange Overlay da ist */
     }
     
     #go-text {
@@ -75,16 +76,17 @@
       font-family: monospace;
       z-index: 5;
       text-align: right;
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
 
-  <div id="version-display">v3.3</div>
-  <div id="angle-display"></div>
+  <div id="version-display">v4.1 Hidden Mouse</div>
+  <div id="angle-display">Waiting for input...</div>
 
   <div id="permission-overlay">
-    <span id="go-text">Go</span>
+    <span id="go-text">Start</span>
   </div>
 
   <svg id="motion-svg" xmlns="http://www.w3.org/2000/svg" fill="white">
@@ -122,8 +124,16 @@
       const container = document.getElementById('word-container');
       const letters = gsap.utils.toArray(".letter-group");
       
-      const screenWidth = window.innerWidth;
-      const screenHeight = window.innerHeight;
+      let screenWidth = window.innerWidth;
+      let screenHeight = window.innerHeight;
+      
+      // Resize Handler für Desktop Fenster-Änderungen
+      window.addEventListener('resize', () => {
+        screenWidth = window.innerWidth;
+        screenHeight = window.innerHeight;
+        svg.setAttribute('viewBox', `0 0 ${screenWidth} ${screenHeight}`);
+        // Reset Logic könnte hier erweitert werden, aber für Motion reicht ViewBox update oft
+      });
       
       svg.setAttribute('viewBox', `0 0 ${screenWidth} ${screenHeight}`);
       const viewBox = { width: screenWidth, height: screenHeight };
@@ -136,7 +146,7 @@
       const centerX = viewBox.width / 2;
       const centerY = viewBox.height / 2;
       
-      // Initiale Positionierung jedes einzelnen Buchstabens
+      // Initiale Positionierung
       letters.forEach(letter => {
         const letterBBox = letter.getBBox();
         letter.originalBBox = letterBBox;
@@ -149,21 +159,30 @@
         });
       });
 
+      // Globale Kräfte (-1 bis 1)
       let forceX = 0, forceY = 0;
+      
+      // Gyro Variablen
       let neutralBetaCalibrated = null;
       let neutralGammaCalibrated = null;
+      let isGyroActive = false;
+      
       let animationLoopStarted = false;
       
+      // --- INPUT HANDLER: GYRO ---
       function handleOrientation(event) {
+        if (!event.gamma && !event.beta) return;
+        isGyroActive = true; 
+
         const gamma = event.gamma || 0; 
-        const beta = event.beta || 0;   
+        const beta = event.beta || 0;    
         
         if (neutralBetaCalibrated === null) {
             neutralBetaCalibrated = beta;
             neutralGammaCalibrated = gamma;
         }
 
-        angleDisplay.innerHTML = `beta: ${beta.toFixed(1)} (N:${neutralBetaCalibrated.toFixed(1)})<br>gamma: ${gamma.toFixed(1)} (N:${neutralGammaCalibrated.toFixed(1)})`;
+        angleDisplay.innerHTML = `Mode: GYRO<br>beta: ${beta.toFixed(1)}<br>gamma: ${gamma.toFixed(1)}`;
 
         const tiltRange = 30.0;
         const deadzone = 2.0; 
@@ -183,6 +202,39 @@
         }
       }
 
+      // --- INPUT HANDLER: MOUSE (Mac/Desktop) ---
+      function handleMouseMove(e) {
+        if (isGyroActive) return; // Gyro hat Vorrang, falls verfügbar
+
+        // Normalisiere Mausposition von -1 (links/oben) bis 1 (rechts/unten)
+        // 0 ist die Mitte
+        const xNorm = (e.clientX / screenWidth) * 2 - 1;
+        const yNorm = (e.clientY / screenHeight) * 2 - 1;
+
+        forceX = xNorm;
+        forceY = yNorm;
+
+        angleDisplay.innerHTML = `Mode: MOUSE<br>X: ${forceX.toFixed(2)}<br>Y: ${forceY.toFixed(2)}`;
+      }
+
+      function handleMouseLeave() {
+        if (isGyroActive) return;
+        // Reset zur Mitte wenn Maus das Fenster verlässt
+        gsap.to({v:0}, {
+            duration: 1,
+            onUpdate: function() {
+                // Sanftes Ausblenden der Kräfte ist komplexer, 
+                // hier setzen wir sie direkt auf 0, GSAP im Loop übernimmt das Smoothing
+                forceX = 0;
+                forceY = 0;
+            },
+            onComplete: () => {
+                 angleDisplay.innerHTML = `Mode: MOUSE (Idle)`;
+            }
+        });
+      }
+
+      // --- ANIMATION LOOP ---
       function updateAnimation() {
         const neutralLeft = centerX - neutralWidth / 2;
         const neutralRight = centerX + neutralWidth / 2;
@@ -190,6 +242,8 @@
         const neutralBottom = centerY + neutralHeight / 2;
 
         let newLeft = neutralLeft, newRight = neutralRight, newTop = neutralTop, newBottom = neutralBottom;
+        
+        // Berechne Zielpositionen basierend auf forceX/Y
         if (forceX > 0) newRight = neutralRight + forceX * (viewBox.width - neutralRight);
         else if (forceX < 0) newLeft = neutralLeft + forceX * neutralLeft;
         
@@ -199,10 +253,10 @@
         const newWidth = newRight - newLeft;
         const newHeight = newBottom - newTop;
         
-        const isReturning = forceX === 0 && forceY === 0;
+        // Wenn Kräfte fast 0 sind, ist es eine "Rückkehr"-Bewegung -> langsamer/smoother
+        const isReturning = Math.abs(forceX) < 0.05 && Math.abs(forceY) < 0.05;
         const duration = isReturning ? 2.5 : 0.5;
 
-        // Animiere jeden Buchstaben einzeln mit Versatz
         gsap.to(letters, { 
             x: (i, target) => {
                 const letterOrigBBox = target.originalBBox;
@@ -220,35 +274,38 @@
             scaleY: newHeight / wordOriginalBBox.height,
             duration: duration,
             ease: "power2.out",
-            stagger: 0.03
+            stagger: 0.03,
+            overwrite: "auto" // Wichtig für Performance bei Mausbewegungen
         });
 
         requestAnimationFrame(updateAnimation);
       }
       
+      // --- START UP ---
       function startInteraction() {
+        permissionOverlay.style.display = 'none';
+        
+        // 1. Gyro Versuch (iOS/Android)
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission()
                 .then(permissionState => {
                     if (permissionState === 'granted') {
                         window.addEventListener('deviceorientation', handleOrientation);
-                        permissionOverlay.style.display = 'none';
-                        if (!animationLoopStarted) {
-                            requestAnimationFrame(updateAnimation);
-                            animationLoopStarted = true;
-                        }
-                    } else {
-                        permissionOverlay.innerHTML = "<p>Zugriff auf Sensoren wurde verweigert.</p>";
                     }
                 })
                 .catch(console.error);
         } else {
+            // Non-iOS Mobile Devices
             window.addEventListener('deviceorientation', handleOrientation);
-            permissionOverlay.style.display = 'none';
-            if (!animationLoopStarted) {
-                requestAnimationFrame(updateAnimation);
-                animationLoopStarted = true;
-            }
+        }
+
+        // 2. Maus Event Listener (Desktop/Mac Fallback)
+        window.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseleave', handleMouseLeave);
+
+        if (!animationLoopStarted) {
+            requestAnimationFrame(updateAnimation);
+            animationLoopStarted = true;
         }
       }
 
